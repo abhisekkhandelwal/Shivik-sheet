@@ -1,0 +1,5 @@
+{
+  "name": "React Gemini Spreadsheet",
+  "description": "A fully functional spreadsheet application built with React and Tailwind CSS. It supports basic cell editing, formulas (SUM, AVERAGE, +, -, *, /), and automatic recalculation of dependent cells.",
+  "requestFramePermissions": []
+}
