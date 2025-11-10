@@ -1,6 +1,6 @@
 
 import { StateCreator } from 'zustand';
-import { SpreadsheetStore, Workbook } from '../types';
+import { SpreadsheetStore, Workbook, ImportResult } from '../types';
 import { createInitialSheet, addSnapshot } from '../storeHelpers';
 
 const rehydrateSet = (key: string, value: any) => {
@@ -10,7 +10,7 @@ const rehydrateSet = (key: string, value: any) => {
     return value;
 };
 
-export const createWorkbookSlice: StateCreator<SpreadsheetStore, [['zustand/immer', never]], [], Pick<SpreadsheetStore, 'loadWorkbook' | 'createWorkbook' | 'addSheet' | 'deleteSheet' | 'renameSheet' | 'setActiveSheet' | 'toggleConditionalFormattingPanel' | 'toggleDataValidationDialog'>> = (set, get) => ({
+export const createWorkbookSlice: StateCreator<SpreadsheetStore, [['zustand/immer', never]], [], Pick<SpreadsheetStore, 'loadWorkbook' | 'createWorkbook' | 'addSheet' | 'deleteSheet' | 'renameSheet' | 'setActiveSheet' | 'toggleConditionalFormattingPanel' | 'toggleDataValidationDialog' | 'importWorkbook'>> = (set, get) => ({
   loadWorkbook: (workbook) => {
     // Rehydrate any Sets that were serialized
     for (const sheetId in workbook.sheets) {
@@ -21,6 +21,22 @@ export const createWorkbookSlice: StateCreator<SpreadsheetStore, [['zustand/imme
     }
     const stringified = JSON.stringify(workbook);
     set({ workbook, history: [JSON.parse(stringified)], historyIndex: 0 });
+  },
+
+  importWorkbook: (result: ImportResult, name: string) => {
+    const newWorkbook: Workbook = {
+        id: `wb_${Date.now()}`,
+        name,
+        sheets: result.sheets,
+        activeSheetId: result.activeSheet,
+    };
+    for (const sheetId in newWorkbook.sheets) {
+        const sheet = newWorkbook.sheets[sheetId];
+        if (sheet.hiddenRows && !(sheet.hiddenRows instanceof Set)) {
+            sheet.hiddenRows = new Set((sheet.hiddenRows as any).data || []);
+        }
+    }
+    set({ workbook: newWorkbook, history: [JSON.parse(JSON.stringify(newWorkbook))], historyIndex: 0 });
   },
 
   createWorkbook: (name) => {

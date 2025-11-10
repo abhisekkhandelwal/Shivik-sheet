@@ -1,3 +1,4 @@
+
 // --- Core Data Types ---
 export type CellValue = string | number | boolean | null;
 
@@ -102,6 +103,11 @@ export interface Workbook {
   activeSheetId: string;
 }
 
+export interface ImportResult {
+  sheets: Record<string, Sheet>;
+  activeSheet: string;
+}
+
 // --- Store Types ---
 export type MoveDirection = 'up' | 'down' | 'left' | 'right';
 
@@ -115,6 +121,7 @@ export interface BaseState {
 
 export interface WorkbookSlice {
     loadWorkbook: (workbook: Workbook) => void;
+    importWorkbook: (result: ImportResult, name: string) => void;
     createWorkbook: (name: string) => void;
     addSheet: (name?: string) => void;
     deleteSheet: (sheetId: string) => void;

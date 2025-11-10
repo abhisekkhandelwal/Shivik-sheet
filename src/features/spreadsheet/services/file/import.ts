@@ -1,11 +1,7 @@
 
-import { CellData, Sheet } from '../../store/types';
+import * as XLSX from 'xlsx';
+import { CellData, Sheet, ImportResult } from '../../store/types';
 import { colIndexToLabel } from '../../utils/cellUtils';
-
-export interface ImportResult {
-  sheets: Record<string, Sheet>;
-  activeSheet: string;
-}
 
 const getDefaultCellStyle = (): CellData['style'] => ({
     fontFamily: 'Inter',
@@ -68,6 +64,8 @@ export const parseCSV = (content: string, sheetName: string = 'Sheet1'): ImportR
     columns: {},
     rows: {},
     merges: [],
+    filter: undefined,
+    hiddenRows: new Set(),
     conditionalFormats: [],
     dataValidations: [],
     activeCell: { col: 0, row: 0 },
@@ -115,6 +113,8 @@ export const parseJSON = (content: string, sheetName: string = 'Sheet1'): Import
         columns: {},
         rows: {},
         merges: [],
+        filter: undefined,
+        hiddenRows: new Set(),
         conditionalFormats: [],
         dataValidations: [],
         activeCell: { col: 0, row: 0 },
@@ -129,8 +129,86 @@ export const parseJSON = (content: string, sheetName: string = 'Sheet1'): Import
   }
 };
 
+export const parseXLSX = (content: ArrayBuffer): ImportResult => {
+    const workbook = XLSX.read(content, { type: 'buffer' });
+    const sheets: Record<string, Sheet> = {};
+    let firstSheetId = '';
+
+    workbook.SheetNames.forEach((sheetName, index) => {
+        const worksheet = workbook.Sheets[sheetName];
+        const data: Record<string, CellData> = {};
+        let lastUsedRow = 0;
+        let lastUsedCol = 0;
+
+        const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+        lastUsedRow = range.e.r;
+        lastUsedCol = range.e.c;
+
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cell_address = { c: C, r: R };
+                const cell_ref = XLSX.utils.encode_cell(cell_address);
+                const cell = worksheet[cell_ref];
+
+                if (cell) {
+                    const cellId = colIndexToLabel(C) + (R + 1);
+                    const rawValue = cell.f ? `=${cell.f}` : (cell.w ?? String(cell.v ?? ''));
+                    data[cellId] = {
+                        id: cellId,
+                        raw: rawValue,
+                        value: cell.v ?? null,
+                        style: getDefaultCellStyle(),
+                    };
+                }
+            }
+        }
+
+        const sheetId = `sheet_${Date.now()}_${index}`;
+        if(index === 0) firstSheetId = sheetId;
+        
+        sheets[sheetId] = {
+            id: sheetId,
+            name: sheetName,
+            data,
+            columns: {},
+            rows: {},
+            merges: (worksheet['!merges'] || []).map((m: any) => ({
+                start: { col: m.s.c, row: m.s.r },
+                end: { col: m.e.c, row: m.e.r },
+            })),
+            filter: undefined,
+            hiddenRows: new Set(),
+            conditionalFormats: [],
+            dataValidations: [],
+            activeCell: { col: 0, row: 0 },
+            selection: { start: { col: 0, row: 0 }, end: { col: 0, row: 0 } },
+            lastUsedRow,
+            lastUsedCol,
+        };
+    });
+
+    return { sheets, activeSheet: firstSheetId };
+}
+
 export const importFile = async (file: File): Promise<ImportResult> => {
   const extension = file.name.split('.').pop()?.toLowerCase();
+  
+  if (extension === 'xlsx') {
+      return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+              try {
+                  const content = e.target?.result as ArrayBuffer;
+                  resolve(parseXLSX(content));
+              } catch (error) {
+                  reject(error);
+              }
+          };
+          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.readAsArrayBuffer(file);
+      });
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {

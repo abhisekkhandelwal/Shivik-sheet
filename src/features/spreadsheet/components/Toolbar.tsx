@@ -5,6 +5,8 @@ import { addressToId } from '../utils/cellUtils';
 import { findMergeForCell, sortRange, doesRangeOverlapMerges } from '../utils/rangeUtils';
 import { FONT_SIZES, useSpreadsheetStore } from '../store/spreadsheetStore';
 import RibbonDropdown, { DropdownItem } from '../../../components/ui/RibbonDropdown';
+import { importFile } from '../services/file/import';
+import { exportToCSV, exportToJSON } from '../services/file/export';
 
 const FONT_FAMILIES = ['Aptos Narrow', 'Arial', 'Calibri', 'Courier New', 'Times New Roman', 'Verdana'];
 const NUMBER_FORMATS = [
@@ -131,9 +133,33 @@ const Toolbar: React.FC = () => {
         autoSum, fillSelection, clearAll, clearFormats, averageSelection, countSelection,
         maxSelection, minSelection, insertRows, deleteRows, insertColumns, deleteColumns,
         toggleConditionalFormattingPanel, toggleDataValidationDialog,
-        toggleSortDialog, toggleFilter
+        toggleSortDialog, toggleFilter, importWorkbook,
     } = useSpreadsheet();
     const [activeTab, setActiveTab] = React.useState('Home');
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+    const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            try {
+                const result = await importFile(file);
+                importWorkbook(result, file.name);
+            } catch (error: any) {
+                console.error("Failed to import file:", error);
+                alert(`Error importing file: ${error.message}`);
+            }
+            if(e.target) e.target.value = '';
+        }
+    };
+
+    const handleExportCSV = () => {
+        if (activeSheet) exportToCSV(activeSheet);
+    };
+
+    const handleExportJSON = () => {
+        if (activeSheet) exportToJSON(activeSheet);
+    };
+
 
     if (!activeSheet?.selection) {
         return <div className="flex items-center px-2 py-1 bg-gray-200 border-b border-gray-300 shadow-sm h-[112px]"></div>;
@@ -173,8 +199,41 @@ const Toolbar: React.FC = () => {
     return (
         <div className="flex flex-col bg-gray-100 border-b border-gray-300 shadow-sm select-none">
             <div className="flex items-center px-1 border-b border-gray-200">
+                <TabButton name="File" />
                 <TabButton name="Home" />
                 <TabButton name="Data" />
+            </div>
+            <div className={`flex items-stretch px-1 bg-gray-200 ${activeTab !== 'File' ? 'hidden' : ''}`}>
+                 <RibbonSection label="File Operations" className="space-x-1">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        onChange={handleFileImport}
+                        accept=".xlsx,.csv,.json,.txt"
+                    />
+                    <RibbonLargeDropdownButton 
+                        title="Import File" 
+                        label="Import" 
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    </RibbonLargeDropdownButton>
+                    <RibbonLargeDropdownButton 
+                        title="Export as CSV" 
+                        label="Export CSV" 
+                        onClick={handleExportCSV}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    </RibbonLargeDropdownButton>
+                     <RibbonLargeDropdownButton 
+                        title="Export as JSON" 
+                        label="Export JSON" 
+                        onClick={handleExportJSON}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    </RibbonLargeDropdownButton>
+                </RibbonSection>
             </div>
             <div className={`flex items-stretch px-1 bg-gray-200 ${activeTab !== 'Home' ? 'hidden' : ''}`}>
                 <RibbonSection label="Clipboard" className="items-stretch">

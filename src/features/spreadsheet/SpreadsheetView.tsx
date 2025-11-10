@@ -1,16 +1,16 @@
 
 import React from 'react';
-import Toolbar from './components/Toolbar';
-import FormulaBar from './components/FormulaBar';
-import Grid from './components/Grid';
-import SheetTabs from './components/SheetTabs';
-import { useKeyboard } from './hooks/useKeyboard';
-import { useSpreadsheetStore } from './store/spreadsheetStore';
-import { useAutoSave } from './services/storage/autoSave';
-import { indexedDB } from './services/storage/indexedDB';
-import ConditionalFormattingPanel from './components/ConditionalFormattingPanel';
-import DataValidationDialog from './components/DataValidationDialog';
-import SortDialog from './components/SortDialog';
+import Toolbar from '../../components/spreadsheet/Toolbar';
+import FormulaBar from '../../components/spreadsheet/FormulaBar';
+import Grid from '../../components/spreadsheet/Grid';
+import SheetTabs from '../../components/spreadsheet/SheetTabs';
+import { useKeyboard } from '../../hooks/useKeyboard';
+import { useSpreadsheetStore } from '../../lib/store/spreadsheetStore';
+import { useAutoSave } from '../../lib/storage/autoSave';
+import { indexedDB } from '../../lib/storage/indexedDB';
+import ConditionalFormattingPanel from '../../components/spreadsheet/ConditionalFormattingPanel';
+import DataValidationDialog from '../../components/spreadsheet/DataValidationDialog';
+import SortDialog from '../../components/spreadsheet/SortDialog';
 
 const SpreadsheetView: React.FC = () => {
   const { 
