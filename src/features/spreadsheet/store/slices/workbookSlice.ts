@@ -3,9 +3,24 @@ import { StateCreator } from 'zustand';
 import { SpreadsheetStore, Workbook } from '../types';
 import { createInitialSheet, addSnapshot } from '../storeHelpers';
 
+const rehydrateSet = (key: string, value: any) => {
+    if (typeof value === 'object' && value !== null && value._type === 'set') {
+        return new Set(value.data);
+    }
+    return value;
+};
+
 export const createWorkbookSlice: StateCreator<SpreadsheetStore, [['zustand/immer', never]], [], Pick<SpreadsheetStore, 'loadWorkbook' | 'createWorkbook' | 'addSheet' | 'deleteSheet' | 'renameSheet' | 'setActiveSheet' | 'toggleConditionalFormattingPanel' | 'toggleDataValidationDialog'>> = (set, get) => ({
   loadWorkbook: (workbook) => {
-    set({ workbook, history: [JSON.parse(JSON.stringify(workbook))], historyIndex: 0 });
+    // Rehydrate any Sets that were serialized
+    for (const sheetId in workbook.sheets) {
+        const sheet = workbook.sheets[sheetId];
+        if (sheet.hiddenRows && !(sheet.hiddenRows instanceof Set)) {
+             sheet.hiddenRows = new Set((sheet.hiddenRows as any).data || sheet.hiddenRows);
+        }
+    }
+    const stringified = JSON.stringify(workbook);
+    set({ workbook, history: [JSON.parse(stringified)], historyIndex: 0 });
   },
 
   createWorkbook: (name) => {

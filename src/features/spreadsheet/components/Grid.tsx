@@ -1,7 +1,9 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Cell from './Cell';
 import ContextMenu from './ContextMenu';
 import FormulaSuggestions from './FormulaSuggestions';
+import FilterMenu from './FilterMenu';
 import { colIndexToLabel, idToAddress } from '../utils/cellUtils';
 import { useSpreadsheet } from '../hooks/useSpreadsheet';
 import { useVirtualList } from '../hooks/useVirtualGrid';
@@ -10,6 +12,8 @@ import { useSpreadsheetStore } from '../store/spreadsheetStore';
 
 const DEFAULT_COL_WIDTH = 100;
 const DEFAULT_ROW_HEIGHT = 24;
+const ROW_HEADER_WIDTH = 80;
+const COL_HEADER_HEIGHT = 24;
 
 const MarchingAntsOverlay: React.FC = () => {
     const { clipboardRange } = useSpreadsheet();
@@ -49,7 +53,10 @@ const Grid: React.FC = () => {
     editingCellId,
     formulaRangeSelection,
     setColumnWidth,
-    setRowHeight
+    setRowHeight,
+    activeFilterMenu,
+    openFilterMenu,
+    closeFilterMenu
   } = useSpreadsheet();
   const [isDragging, setIsDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -65,7 +72,10 @@ const Grid: React.FC = () => {
   const [scrollPos, setScrollPos] = useState({ top: 0, left: 0 });
   
   const getColWidth = useCallback((index: number) => activeSheet?.columns[index]?.width ?? DEFAULT_COL_WIDTH, [activeSheet?.columns]);
-  const getRowHeight = useCallback((index: number) => activeSheet?.rows[index]?.height ?? DEFAULT_ROW_HEIGHT, [activeSheet?.rows]);
+  const getRowHeight = useCallback((index: number) => {
+    if (activeSheet?.hiddenRows?.has(index)) return 0;
+    return activeSheet?.rows[index]?.height ?? DEFAULT_ROW_HEIGHT
+  }, [activeSheet?.rows, activeSheet?.hiddenRows]);
 
   useEffect(() => {
     const container = gridContainerRef.current;
@@ -132,6 +142,9 @@ const Grid: React.FC = () => {
     if (editingCellId) {
       commitEditing();
     }
+    if (activeFilterMenu) {
+        closeFilterMenu();
+    }
 
     const state = useSpreadsheetStore.getState();
     const currentActiveCell = state.workbook?.sheets[state.workbook!.activeSheetId]?.activeCell;
@@ -142,7 +155,7 @@ const Grid: React.FC = () => {
       setIsDragging(true);
       setActiveCell({ col, row });
     }
-  }, [editingCellId, commitEditing, setSelection, setActiveCell, closeContextMenu]);
+  }, [editingCellId, commitEditing, setSelection, setActiveCell, closeContextMenu, activeFilterMenu, closeFilterMenu]);
 
   const handleMouseOver = useCallback((col: number, row: number) => {
     if (isDragging) {
@@ -237,16 +250,18 @@ const Grid: React.FC = () => {
     <div className={`relative w-full h-full flex flex-col overflow-hidden bg-gray-200 ${(resizingCol || resizingRow) ? 'cursor-ew-resize' : ''}`} onMouseUp={handleMouseUpGlobal} onMouseLeave={handleMouseUpGlobal} onContextMenu={handleContextMenu}>
       {/* Column Headers */}
       <div className="flex select-none">
-        <div className="flex-shrink-0 bg-gray-100 border-r border-b border-gray-300 z-30" style={{ width: 50, height: 24 }}></div>
-        <div ref={colHeaderContainerRef} className="relative overflow-hidden" style={{ height: 24, width: `calc(100% - 50px - 14px)`}}>
+        <div className="flex-shrink-0 bg-gray-100 border-r border-b border-gray-300 z-30" style={{ width: ROW_HEADER_WIDTH, height: COL_HEADER_HEIGHT }}></div>
+        <div ref={colHeaderContainerRef} className="relative overflow-hidden" style={{ height: COL_HEADER_HEIGHT, width: `calc(100% - ${ROW_HEADER_WIDTH}px - 1px)`}}>
           <div style={{ width: totalWidth, position: 'relative' }}>
             {virtualCols.map(({ index, offset }) => {
               const isFiltered = filter && index >= filter.range.start.col && index <= filter.range.end.col;
               return (
-              <div key={index} className="absolute top-0 flex items-center justify-center font-bold text-gray-600 bg-gray-100 border-r border-b border-gray-300" style={{ left: offset, width: getColWidth(index), height: 24, boxSizing: 'border-box' }}>
-                {colIndexToLabel(index)}
+              <div key={index} className="absolute top-0 flex items-center justify-center px-2 font-bold text-gray-600 bg-gray-100 border-r border-b border-gray-300" style={{ left: offset, width: getColWidth(index), height: COL_HEADER_HEIGHT, boxSizing: 'border-box' }}>
+                <span className="flex-grow text-center">{colIndexToLabel(index)}</span>
                 {isFiltered && (
-                    <svg className="w-4 h-4 ml-1 text-gray-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10 14l6-6H4l6 6z"/></svg>
+                    <div className="cursor-pointer" onClick={(e) => { e.stopPropagation(); openFilterMenu(index)}}>
+                        <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10 14l6-6H4l6 6z"/></svg>
+                    </div>
                 )}
                 <div 
                     className="absolute top-0 right-0 h-full w-1 cursor-col-resize hover:bg-blue-400 z-10"
@@ -260,29 +275,41 @@ const Grid: React.FC = () => {
 
       <div className="flex flex-grow overflow-hidden">
         {/* Row Headers */}
-        <div ref={rowHeaderContainerRef} className="relative overflow-hidden select-none" style={{ width: 50 }}>
+        <div ref={rowHeaderContainerRef} className="relative overflow-hidden select-none" style={{ width: ROW_HEADER_WIDTH }}>
           <div style={{ height: totalHeight, position: 'relative' }}>
-            {virtualRows.map(({ index, offset }) => (
-              <div key={index} className="absolute left-0 flex items-center justify-center font-bold text-gray-600 bg-gray-100 border-r border-b border-gray-300" style={{ top: offset, width: 50, height: getRowHeight(index), boxSizing: 'border-box' }}>
-                {index + 1}
-                 <div 
-                    className="absolute bottom-0 left-0 w-full h-1 cursor-row-resize hover:bg-blue-400 z-10"
-                    onMouseDown={(e) => { e.stopPropagation(); setResizingRow({ index, startY: e.clientY, startHeight: getRowHeight(index) }); }}
-                />
-              </div>
-            ))}
+            {virtualRows.map(({ index, offset }) => {
+                if (getRowHeight(index) === 0) return null;
+                return (
+                  <div key={index} className="absolute left-0 flex items-center justify-end pr-2 font-bold text-gray-600 bg-gray-100 border-r border-b border-gray-300" style={{ top: offset, width: ROW_HEADER_WIDTH, height: getRowHeight(index), boxSizing: 'border-box' }}>
+                    {index + 1}
+                     <div 
+                        className="absolute bottom-0 left-0 w-full h-1 cursor-row-resize hover:bg-blue-400 z-10"
+                        onMouseDown={(e) => { e.stopPropagation(); setResizingRow({ index, startY: e.clientY, startHeight: getRowHeight(index) }); }}
+                    />
+                  </div>
+                )
+            })}
           </div>
         </div>
 
         {/* Main Grid */}
         <div ref={gridContainerRef} className="flex-grow overflow-auto" onScroll={handleScroll}>
           <div className="relative" style={{ width: totalWidth, height: totalHeight }}>
+            {activeFilterMenu && (
+                 <div
+                    className="absolute"
+                    style={{ left: colOffsets[activeFilterMenu.col] - scrollPos.left, top: COL_HEADER_HEIGHT - scrollPos.top, zIndex: 60 }}
+                >
+                    <FilterMenu col={activeFilterMenu.col} onClose={closeFilterMenu} />
+                </div>
+            )}
             <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
                 {renderClipboardOverlay()}
                 {renderFormulaRangeOverlay()}
             </div>
             {renderFormulaSuggestions()}
             {virtualRows.map(({ index: rowIndex, offset: offsetTop }) => {
+              if (getRowHeight(rowIndex) === 0) return null;
               return virtualCols.map(({ index: colIndex, offset: offsetLeft }) => {
                   const merge = findMergeForCell({ col: colIndex, row: rowIndex }, activeSheet.merges);
                   if (merge && !areAddressesEqual({ col: colIndex, row: rowIndex }, merge.start)) {

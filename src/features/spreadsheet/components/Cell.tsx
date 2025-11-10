@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { useSpreadsheetStore } from '../store/spreadsheetStore';
-import { addressToId, getDisplayValue, idToAddress } from '../utils/cellUtils';
+import { addressToId, getDisplayValue } from '../utils/cellUtils';
 import { isCellInRange, areAddressesEqual, findMergeForCell } from '../utils/rangeUtils';
 import { useSpreadsheet } from '../hooks/useSpreadsheet';
 import { computeFinalCellStyle } from '../utils/styleUtils';

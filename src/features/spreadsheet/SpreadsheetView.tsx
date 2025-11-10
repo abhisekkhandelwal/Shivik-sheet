@@ -10,6 +10,7 @@ import { useAutoSave } from './services/storage/autoSave';
 import { indexedDB } from './services/storage/indexedDB';
 import ConditionalFormattingPanel from './components/ConditionalFormattingPanel';
 import DataValidationDialog from './components/DataValidationDialog';
+import SortDialog from './components/SortDialog';
 
 const SpreadsheetView: React.FC = () => {
   const { 
@@ -17,13 +18,15 @@ const SpreadsheetView: React.FC = () => {
     createWorkbook, 
     loadWorkbook, 
     isConditionalFormattingPanelOpen, 
-    isDataValidationDialogOpen 
+    isDataValidationDialogOpen,
+    isSortDialogOpen,
   } = useSpreadsheetStore(state => ({
     workbook: state.workbook,
     createWorkbook: state.createWorkbook,
     loadWorkbook: state.loadWorkbook,
     isConditionalFormattingPanelOpen: state.isConditionalFormattingPanelOpen,
     isDataValidationDialogOpen: state.isDataValidationDialogOpen,
+    isSortDialogOpen: state.isSortDialogOpen,
   }));
   
   useKeyboard();
@@ -53,7 +56,7 @@ const SpreadsheetView: React.FC = () => {
 
   return (
     <div 
-      className="w-screen h-screen flex flex-col font-sans text-sm outline-none bg-gray-200 text-gray-900"
+      className="w-full h-full max-w-screen-2xl flex flex-col font-sans text-sm outline-none bg-gray-200 text-gray-900 shadow-2xl rounded-lg overflow-hidden"
     >
       <Toolbar />
       <FormulaBar />
@@ -63,6 +66,7 @@ const SpreadsheetView: React.FC = () => {
       </div>
       <SheetTabs />
       {isDataValidationDialogOpen && <DataValidationDialog />}
+      {isSortDialogOpen && <SortDialog />}
     </div>
   );
 };

@@ -22,6 +22,7 @@ export const createInitialSheet = (name: string): Sheet => ({
   rows: {},
   merges: [],
   filter: undefined,
+  hiddenRows: new Set(),
   conditionalFormats: [],
   dataValidations: [],
   activeCell: { col: 0, row: 0 },
@@ -112,8 +113,16 @@ export const addSnapshot = (get: () => SpreadsheetStore, set: (partial: Partial<
     const { workbook, history, historyIndex } = get();
     if(!workbook) return;
 
+    // Custom serialization to handle Set
+    const serializedWorkbook = JSON.stringify(workbook, (key, value) => {
+        if (value instanceof Set) {
+            return { _type: 'set', data: Array.from(value) };
+        }
+        return value;
+    });
+
     const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(JSON.parse(JSON.stringify(workbook)));
+    newHistory.push(JSON.parse(serializedWorkbook));
     
     if (newHistory.length > MAX_HISTORY_SIZE) {
         newHistory.shift();

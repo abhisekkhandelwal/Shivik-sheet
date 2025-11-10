@@ -130,7 +130,8 @@ const Toolbar: React.FC = () => {
         addOutlineBorderToSelection, increaseDecimalPlaces, decreaseDecimalPlaces,
         autoSum, fillSelection, clearAll, clearFormats, averageSelection, countSelection,
         maxSelection, minSelection, insertRows, deleteRows, insertColumns, deleteColumns,
-        toggleConditionalFormattingPanel, toggleDataValidationDialog
+        toggleConditionalFormattingPanel, toggleDataValidationDialog,
+        toggleSortDialog, toggleFilter
     } = useSpreadsheet();
     const [activeTab, setActiveTab] = React.useState('Home');
 
@@ -161,6 +162,7 @@ const Toolbar: React.FC = () => {
     const insertItems = [ { label: 'Insert Sheet Rows', action: insertRows }, { label: 'Insert Sheet Columns', action: insertColumns } ];
     const deleteItems = [ { label: 'Delete Sheet Rows', action: deleteRows }, { label: 'Delete Sheet Columns', action: deleteColumns } ];
     const formatItems = [ { label: 'Row Height...', action: () => {} , disabled: true}, { label: 'AutoFit Row Height', action: () => {}, disabled: true }, { label: 'Column Width...', action: () => {}, disabled: true }, { label: 'AutoFit Column Width', action: () => {}, disabled: true }, ];
+    const sortFilterItems = [ { label: 'Filter', action: toggleFilter }, { label: 'Sort', action: toggleSortDialog } ];
 
     const TabButton = ({ name }: { name: string }) => (
         <button onClick={() => setActiveTab(name)} className={`px-3 py-1 text-sm ${activeTab === name ? 'bg-gray-200 text-blue-600 font-semibold' : 'text-gray-600 hover:bg-gray-200'}`}>
@@ -235,7 +237,7 @@ const Toolbar: React.FC = () => {
                     <RibbonDropdown title="AutoSum" label="AutoSum" onMainClick={autoSum} items={autoSumItems}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 7H6l6 6-6 6h12"/></svg></RibbonDropdown>
                     <RibbonDropdown items={fillItems} title="Fill" label="Fill"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17V3M5 10l7 7 7-7"></path></svg></RibbonDropdown>
                     <RibbonDropdown items={clearItems} title="Clear" label="Clear"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 6.5l-5.4 5.4M21.5 17.5l-5.4-5.4M4.5 6.5l5.4 5.4M4.5 17.5l5.4-5.4"></path></svg></RibbonDropdown>
-                    <RibbonDropdown title="Sort & Filter" label="Sort & Filter" items={[]} disabled><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M7 12h10M10 18h4"></path></svg></RibbonDropdown>
+                    <RibbonDropdown title="Sort & Filter" label="Sort & Filter" items={sortFilterItems}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M7 12h10M10 18h4"></path></svg></RibbonDropdown>
                     <RibbonDropdown title="Find & Select" label="Find & Select" items={[]} disabled><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></RibbonDropdown>
                 </RibbonSection>
             </div>

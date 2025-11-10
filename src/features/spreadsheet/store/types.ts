@@ -50,6 +50,11 @@ export interface DataValidationRule {
     errorMessage?: string;
 }
 
+export interface Filter {
+    range: Range;
+    criteria?: Record<number, { values: Set<string> }>;
+}
+
 // --- Structural Types ---
 export interface CellAddress {
   col: number;
@@ -80,7 +85,8 @@ export interface Sheet {
   columns: Record<number, ColumnData>;
   rows: Record<number, RowData>;
   merges: Range[];
-  filter?: { range: Range };
+  filter?: Filter;
+  hiddenRows?: Set<number>;
   conditionalFormats: ConditionalFormatRule[];
   dataValidations: DataValidationRule[];
   activeCell: CellAddress;
@@ -103,6 +109,8 @@ export interface BaseState {
     workbook: Workbook | null;
     isConditionalFormattingPanelOpen: boolean;
     isDataValidationDialogOpen: boolean;
+    activeFilterMenu: { col: number } | null;
+    isSortDialogOpen: boolean;
 }
 
 export interface WorkbookSlice {
@@ -208,6 +216,15 @@ export interface DataValidationSlice {
 
 export interface FilterSlice {
     toggleFilter: () => void;
+    openFilterMenu: (col: number) => void;
+    closeFilterMenu: () => void;
+    applyFilter: (col: number, values: Set<string>) => void;
+    clearColumnFilter: (col: number) => void;
 }
 
-export type SpreadsheetStore = BaseState & WorkbookSlice & SelectionSlice & StyleSlice & ClipboardSlice & DataSlice & StructureSlice & HistorySlice & ConditionalFormatSlice & DataValidationSlice & FilterSlice;
+export interface SortSlice {
+    toggleSortDialog: () => void;
+    sortSheet: (col: number, direction: 'asc' | 'desc', hasHeader: boolean) => void;
+}
+
+export type SpreadsheetStore = BaseState & WorkbookSlice & SelectionSlice & StyleSlice & ClipboardSlice & DataSlice & StructureSlice & HistorySlice & ConditionalFormatSlice & DataValidationSlice & FilterSlice & SortSlice;

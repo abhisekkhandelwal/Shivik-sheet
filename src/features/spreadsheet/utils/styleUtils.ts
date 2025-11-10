@@ -1,5 +1,7 @@
 import { CellData, CellStyle, ConditionalFormatRule } from "../store/types";
 import { Getter } from '../services/formula/evaluator';
+import { isCellInRange } from "./rangeUtils";
+import { idToAddress } from "./cellUtils";
 
 const checkCondition = (
   cellValue: number | string,
@@ -35,11 +37,14 @@ export const computeFinalCellStyle = (
   if (!cell?.value) {
     return finalStyle;
   }
+  
+  const cellAddress = idToAddress(cell.id);
 
   for (const rule of conditionalFormats) {
-    // This is a simplified check. A full implementation would check if the cell is in rule.range
-    if (checkCondition(cell.value as number | string, rule)) {
-      finalStyle = { ...finalStyle, ...rule.style };
+    if (isCellInRange(cellAddress, rule.range)) {
+        if (checkCondition(cell.value as number | string, rule)) {
+          finalStyle = { ...finalStyle, ...rule.style };
+        }
     }
   }
 
