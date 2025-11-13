@@ -4,7 +4,10 @@
 
 export type TokenType = 
   | 'FUNCTION' 
-  | 'CELL_REF' 
+  | 'CELL_REF'
+  | 'NAME'
+  | 'SHEET_REF'
+  | 'BANG'
   | 'RANGE' 
   | 'NUMBER' 
   | 'STRING' 
@@ -27,6 +30,8 @@ export type ASTNode =
   | { type: 'boolean'; value: boolean }
   | { type: 'cell'; ref: string }
   | { type: 'range'; start: string; end: string }
+  | { type: 'name'; name: string }
+  | { type: 'sheetReference'; sheet: string; reference: ASTNode }
   | { type: 'function'; name: string; args: ASTNode[] }
   | { type: 'binary'; op: string; left: ASTNode; right: ASTNode }
   | { type: 'unary'; op: string; operand: ASTNode };
@@ -56,7 +61,25 @@ export class FormulaParser {
         continue;
       }
 
-      // String literal
+      // Quoted sheet name or string literal
+      if (char === "'") {
+        let str = '';
+        const start = i;
+        i++;
+        while (i < input.length && input[i] !== "'") {
+          str += input[i];
+          i++;
+        }
+        i++; // Skip closing '
+        if(i < input.length && input[i] === '!') {
+          tokens.push({ type: 'SHEET_REF', value: str, pos: start });
+        } else {
+            // It was a string literal that started with a single quote. This is not standard but we'll allow it.
+            i = start + 1; // rewind
+            tokens.push({ type: 'STRING', value: `'${str}'`, pos: start });
+        }
+        continue;
+      }
       if (char === '"') {
         let str = '';
         const start = i;
@@ -82,235 +105,147 @@ export class FormulaParser {
         continue;
       }
 
-      // Cell references & functions (A1, SUM, etc.)
-      if (/[A-Za-z]/.test(char)) {
+      // Cell references, functions, names (A1, SUM, MySales)
+      if (/[A-Za-z_]/.test(char)) {
         let word = '';
         const start = i;
-        while (i < input.length && /[A-Za-z0-9_]/.test(input[i])) {
+        while (i < input.length && /[A-Za-z0-9_.]/.test(input[i])) {
           word += input[i];
           i++;
         }
 
         const upper = word.toUpperCase();
 
-        // Check if it's a boolean
         if (upper === 'TRUE' || upper === 'FALSE') {
           tokens.push({ type: 'BOOLEAN', value: upper, pos: start });
           continue;
         }
 
-        // Check if followed by ( -> function
         while (i < input.length && /\s/.test(input[i])) i++;
         if (i < input.length && input[i] === '(') {
           tokens.push({ type: 'FUNCTION', value: upper, pos: start });
+        } else if (i < input.length && input[i] === '!') {
+          tokens.push({ type: 'SHEET_REF', value: word, pos: start });
         } else if (/^[A-Z]+[0-9]+$/.test(upper)) {
-          // Cell reference pattern (A1, BC123)
           tokens.push({ type: 'CELL_REF', value: upper, pos: start });
         } else {
-          // Default to named range / invalid ref, handled by evaluator
-          tokens.push({ type: 'CELL_REF', value: upper, pos: start });
+          tokens.push({ type: 'NAME', value: upper, pos: start });
         }
         continue;
       }
-
-      // Operators and punctuation
+      
       const charMap: Record<string, TokenType> = {
-        '(': 'LPAREN',
-        ')': 'RPAREN',
-        ',': 'COMMA',
-        ':': 'COLON',
-        '+': 'OPERATOR',
-        '-': 'OPERATOR',
-        '*': 'OPERATOR',
-        '/': 'OPERATOR',
-        '^': 'OPERATOR',
-        '=': 'OPERATOR',
-        '>': 'OPERATOR',
-        '<': 'OPERATOR',
-        '&': 'OPERATOR'
+        '(': 'LPAREN', ')': 'RPAREN', ',': 'COMMA', ':': 'COLON',
+        '+': 'OPERATOR', '-': 'OPERATOR', '*': 'OPERATOR', '/': 'OPERATOR',
+        '^': 'OPERATOR', '=': 'OPERATOR', '>': 'OPERATOR', '<': 'OPERATOR',
+        '&': 'OPERATOR', '!': 'BANG'
       };
 
-      // Handle >= <= <>
       if ((char === '>' || char === '<') && input[i + 1] === '=') {
-        tokens.push({ type: 'OPERATOR', value: char + '=', pos: i });
-        i += 2;
-        continue;
+        tokens.push({ type: 'OPERATOR', value: char + '=', pos: i }); i += 2; continue;
       }
       if (char === '<' && input[i + 1] === '>') {
-        tokens.push({ type: 'OPERATOR', value: '<>', pos: i });
-        i += 2;
-        continue;
+        tokens.push({ type: 'OPERATOR', value: '<>', pos: i }); i += 2; continue;
       }
 
       if (charMap[char]) {
-        tokens.push({ type: charMap[char], value: char, pos: i });
-        i++;
-        continue;
+        tokens.push({ type: charMap[char], value: char, pos: i }); i++; continue;
       }
 
       throw new Error(`Unexpected character: ${char} at position ${i}`);
     }
-
     return tokens;
   }
 
-  private parseExpression(): ASTNode {
-    return this.parseComparison();
-  }
-
+  private parseExpression(): ASTNode { return this.parseComparison(); }
   private parseComparison(): ASTNode {
     let left = this.parseAddSub();
-
     while (this.match('OPERATOR', ['=', '>', '<', '>=', '<=', '<>'])) {
-      const op = this.previous().value;
-      const right = this.parseAddSub();
-      left = { type: 'binary', op, left, right };
+      const op = this.previous().value; const right = this.parseAddSub(); left = { type: 'binary', op, left, right };
     }
-
     return left;
   }
-
   private parseAddSub(): ASTNode {
     let left = this.parseMulDiv();
-
     while (this.match('OPERATOR', ['+', '-', '&'])) {
-      const op = this.previous().value;
-      const right = this.parseMulDiv();
-      left = { type: 'binary', op, left, right };
+      const op = this.previous().value; const right = this.parseMulDiv(); left = { type: 'binary', op, left, right };
     }
-
     return left;
   }
-
   private parseMulDiv(): ASTNode {
     let left = this.parsePower();
-
     while (this.match('OPERATOR', ['*', '/'])) {
-      const op = this.previous().value;
-      const right = this.parsePower();
-      left = { type: 'binary', op, left, right };
+      const op = this.previous().value; const right = this.parsePower(); left = { type: 'binary', op, left, right };
     }
-
     return left;
   }
-
   private parsePower(): ASTNode {
     let left = this.parseUnary();
-
     while (this.match('OPERATOR', ['^'])) {
-      const op = this.previous().value;
-      const right = this.parseUnary();
-      left = { type: 'binary', op, left, right };
+      const op = this.previous().value; const right = this.parseUnary(); left = { type: 'binary', op, left, right };
     }
-
     return left;
   }
-
   private parseUnary(): ASTNode {
     if (this.match('OPERATOR', ['-', '+'])) {
-      const op = this.previous().value;
-      const operand = this.parseUnary();
-      return { type: 'unary', op, operand };
+      const op = this.previous().value; const operand = this.parseUnary(); return { type: 'unary', op, operand };
     }
-
     return this.parsePrimary();
   }
 
   private parsePrimary(): ASTNode {
-    // Number
-    if (this.match('NUMBER')) {
-      return { type: 'number', value: parseFloat(this.previous().value) };
+    if (this.match('NUMBER')) { return { type: 'number', value: parseFloat(this.previous().value) }; }
+    if (this.match('STRING')) { return { type: 'string', value: this.previous().value }; }
+    if (this.match('BOOLEAN')) { return { type: 'boolean', value: this.previous().value === 'TRUE' }; }
+
+    if (this.match('SHEET_REF')) {
+      const sheet = this.previous().value;
+      this.consume('BANG', `Expected '!' after sheet name`);
+      const reference = this.parsePrimary(); // Recursive call to parse the A1 or A1:B2 part
+      return { type: 'sheetReference', sheet, reference };
     }
 
-    // String
-    if (this.match('STRING')) {
-      return { type: 'string', value: this.previous().value };
-    }
-
-    // Boolean
-    if (this.match('BOOLEAN')) {
-      return { type: 'boolean', value: this.previous().value === 'TRUE' };
-    }
-
-    // Function call
     if (this.match('FUNCTION')) {
-      const name = this.previous().value;
-      this.consume('LPAREN', `Expected '(' after function ${name}`);
-      
+      const name = this.previous().value; this.consume('LPAREN', `Expected '(' after function ${name}`);
       const args: ASTNode[] = [];
       if (!this.check('RPAREN')) {
-        do {
-          args.push(this.parseExpression());
-        } while (this.match('COMMA'));
+        do { args.push(this.parseExpression()); } while (this.match('COMMA'));
       }
-      
-      this.consume('RPAREN', `Expected ')' after function arguments`);
-      return { type: 'function', name, args };
+      this.consume('RPAREN', `Expected ')' after function arguments`); return { type: 'function', name, args };
     }
 
-    // Cell reference or range
-    if (this.match('CELL_REF')) {
-      const start = this.previous().value;
+    if (this.match('CELL_REF') || this.match('NAME')) {
+        const startToken = this.previous();
+        const start = startToken.value;
       
-      // Check for range (A1:B10)
-      if (this.match('COLON')) {
-        this.consume('CELL_REF', 'Expected cell reference after ":"');
-        const end = this.previous().value;
-        return { type: 'range', start, end };
-      }
-      
-      return { type: 'cell', ref: start };
+        if (this.match('COLON')) {
+            const endToken = this.peek();
+            if (endToken.type === 'CELL_REF' || endToken.type === 'NAME') {
+                this.advance();
+                const end = endToken.value;
+                return { type: 'range', start, end };
+            } else {
+                throw new Error(`Expected cell or name after ':'`);
+            }
+        }
+        
+        return startToken.type === 'CELL_REF' ? { type: 'cell', ref: start } : { type: 'name', name: start };
     }
 
-    // Parentheses
     if (this.match('LPAREN')) {
-      const expr = this.parseExpression();
-      this.consume('RPAREN', `Expected ')' after expression`);
-      return expr;
+      const expr = this.parseExpression(); this.consume('RPAREN', `Expected ')' after expression`); return expr;
     }
-
-    const peeked = this.peek();
-    throw new Error(`Unexpected token: ${peeked?.value || 'EOF'} at position ${peeked?.pos || 'end'}`);
+    const peeked = this.peek(); throw new Error(`Unexpected token: ${peeked?.value || 'EOF'} at position ${peeked?.pos || 'end'}`);
   }
 
-  private match(type: TokenType, values?: string[]): boolean {
-    if (this.check(type, values)) {
-      this.advance();
-      return true;
-    }
-    return false;
-  }
-
+  private match(type: TokenType, values?: string[]): boolean { if (this.check(type, values)) { this.advance(); return true; } return false; }
   private check(type: TokenType, values?: string[]): boolean {
-    if (this.isAtEnd()) return false;
-    const token = this.peek();
-    if (token.type !== type) return false;
-    if (values && !values.includes(token.value)) return false;
-    return true;
+    if (this.isAtEnd()) return false; const token = this.peek(); if (token.type !== type) return false; if (values && !values.includes(token.value)) return false; return true;
   }
-
-  private advance(): Token {
-    if (!this.isAtEnd()) this.pos++;
-    return this.previous();
-  }
-
-  private isAtEnd(): boolean {
-    return this.pos >= this.tokens.length;
-  }
-
-  private peek(): Token {
-    return this.tokens[this.pos];
-  }
-
-  private previous(): Token {
-    return this.tokens[this.pos - 1];
-  }
-
-  private consume(type: TokenType, message: string): Token {
-    if (this.check(type)) return this.advance();
-    throw new Error(message);
-  }
+  private advance(): Token { if (!this.isAtEnd()) this.pos++; return this.previous(); }
+  private isAtEnd(): boolean { return this.pos >= this.tokens.length; }
+  private peek(): Token { return this.tokens[this.pos]; }
+  private previous(): Token { return this.tokens[this.pos - 1]; }
+  private consume(type: TokenType, message: string): Token { if (this.check(type)) return this.advance(); throw new Error(message); }
 }
-
-// Singleton instance
 export const parser = new FormulaParser();

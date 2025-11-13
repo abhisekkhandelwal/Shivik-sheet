@@ -35,8 +35,7 @@ export const computeFinalCellStyle = (
   const baseStyle = cell?.style || {};
   let finalStyle: Partial<CellStyle> = { ...baseStyle };
 
-  // FIX: Check for null/undefined explicitly to allow formatting on cells with value 0.
-  if (cell?.value == null) {
+  if (cell?.value === null || cell?.value === undefined) {
     return finalStyle;
   }
   

@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { useSpreadsheet } from '../hooks/useSpreadsheet';
-import Button from '../../../components/ui/button';
-import Select from '../../../components/ui/select';
+import Button from './ui/button';
+import Select from './ui/select';
 import { colIndexToLabel } from '../utils/cellUtils';
 import { sortRange } from '../utils/rangeUtils';
 

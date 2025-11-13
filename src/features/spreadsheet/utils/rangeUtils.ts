@@ -3,6 +3,24 @@ import { CellAddress, Range, Sheet } from "../store/types";
 import { addressToId, idToAddress } from "./cellUtils";
 
 /**
+ * Ensures that the start of a range is the top-left corner and the end is the bottom-right.
+ * @param range The range to sort.
+ * @returns A new, sorted range object.
+ */
+export const sortRange = (range: Range): Range => {
+    return {
+        start: {
+            row: Math.min(range.start.row, range.end.row),
+            col: Math.min(range.start.col, range.end.col),
+        },
+        end: {
+            row: Math.max(range.start.row, range.end.row),
+            col: Math.max(range.start.col, range.end.col),
+        },
+    };
+};
+
+/**
  * Checks if a given cell address is within a specified range.
  * @param cell The address of the cell to check.
  * @param range The range to check against.
@@ -29,31 +47,15 @@ export const areAddressesEqual = (addr1: CellAddress, addr2: CellAddress): boole
 };
 
 /**
-
- * Ensures that the start of a range is the top-left corner and the end is the bottom-right.
- * @param range The range to sort.
- * @returns A new, sorted range object.
- */
-export const sortRange = (range: Range): Range => {
-    return {
-        start: {
-            row: Math.min(range.start.row, range.end.row),
-            col: Math.min(range.start.col, range.end.col),
-        },
-        end: {
-            row: Math.max(range.start.row, range.end.row),
-            col: Math.max(range.start.col, range.end.col),
-        },
-    };
-};
-
-/**
  * Expands a range string (e.g., 'A1:B2') into an array of cell IDs.
  * @param rangeString The range string.
  * @returns An array of all cell IDs within the range.
  */
 export const expandRange = (rangeString: string): string[] => {
-    const [startId, endId] = rangeString.split(':');
+    const parts = rangeString.split(':');
+    const startId = parts[0];
+    const endId = parts.length > 1 ? parts[1] : startId;
+
     const range = sortRange({
         start: idToAddress(startId),
         end: idToAddress(endId),

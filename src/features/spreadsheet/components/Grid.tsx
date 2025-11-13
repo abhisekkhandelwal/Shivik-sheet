@@ -56,7 +56,9 @@ const Grid: React.FC = () => {
     setRowHeight,
     activeFilterMenu,
     openFilterMenu,
-    closeFilterMenu
+    closeFilterMenu,
+    activeChartId,
+    setActiveChart,
   } = useSpreadsheet();
   const [isDragging, setIsDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -138,6 +140,9 @@ const Grid: React.FC = () => {
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, col: number, row: number) => {
+    if (activeChartId) {
+        setActiveChart(null);
+    }
     closeContextMenu();
     if (editingCellId) {
       commitEditing();
@@ -155,7 +160,7 @@ const Grid: React.FC = () => {
       setIsDragging(true);
       setActiveCell({ col, row });
     }
-  }, [editingCellId, commitEditing, setSelection, setActiveCell, closeContextMenu, activeFilterMenu, closeFilterMenu]);
+  }, [editingCellId, commitEditing, setSelection, setActiveCell, closeContextMenu, activeFilterMenu, closeFilterMenu, activeChartId, setActiveChart]);
 
   const handleMouseOver = useCallback((col: number, row: number) => {
     if (isDragging) {
@@ -247,7 +252,7 @@ const Grid: React.FC = () => {
   const { filter } = activeSheet;
 
   return (
-    <div className={`relative w-full h-full flex flex-col overflow-hidden bg-gray-200 ${(resizingCol || resizingRow) ? 'cursor-ew-resize' : ''}`} onMouseUp={handleMouseUpGlobal} onMouseLeave={handleMouseUpGlobal} onContextMenu={handleContextMenu}>
+    <div className={`relative w-full h-full flex flex-col overflow-hidden bg-gray-200 ${(resizingCol || resizingRow) ? 'cursor-ew-resize' : ''}`} onMouseDown={() => {if (activeChartId) setActiveChart(null)}} onMouseUp={handleMouseUpGlobal} onMouseLeave={handleMouseUpGlobal} onContextMenu={handleContextMenu}>
       {/* Column Headers */}
       <div className="flex select-none">
         <div className="flex-shrink-0 bg-gray-100 border-r border-b border-gray-300 z-30" style={{ width: ROW_HEADER_WIDTH, height: COL_HEADER_HEIGHT }}></div>

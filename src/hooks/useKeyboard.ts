@@ -1,4 +1,3 @@
-
 import { useEffect, useRef } from 'react';
 import { useSpreadsheetStore } from '../lib/store/spreadsheetStore';
 import { addressToId } from '../lib/utils/cellUtils';
@@ -35,7 +34,6 @@ export const useKeyboard = () => {
         clearSelection,
         copySelection,
         cutSelection,
-        paste,
         cancelClipboard,
         clipboardMode,
         extendSelection,
@@ -44,7 +42,8 @@ export const useKeyboard = () => {
         selectAll,
         toggleCellStyle,
         setSelectionTextAlign,
-        addOutlineBorderToSelection,
+        // FIX: Replaced 'addOutlineBorderToSelection' with 'setBorders'.
+        setBorders,
         removeBordersFromSelection,
         formulaSuggestions,
         selectNextSuggestion,
@@ -162,7 +161,8 @@ export const useKeyboard = () => {
                     return;
                 case '&': // Add outline border
                     e.preventDefault();
-                    addOutlineBorderToSelection();
+                    // FIX: Changed to call 'setBorders' with the 'outline' type.
+                    setBorders('outline');
                     return;
                 case '_': // Remove borders
                     e.preventDefault();
@@ -194,7 +194,9 @@ export const useKeyboard = () => {
                 case 'a': e.preventDefault(); selectAll(); return;
                 case 'c': e.preventDefault(); copySelection(); return;
                 case 'x': e.preventDefault(); cutSelection(); return;
-                case 'v': e.preventDefault(); paste(); return;
+                case 'v': // Prevent default paste; let the 'paste' event handler take over.
+                    e.preventDefault(); 
+                    return;
                 case 'z': e.preventDefault(); if (historyIndex > 0) undo(); return;
                 case 'y': e.preventDefault(); if (historyIndex < history.length - 1) redo(); return;
                 case 'b': e.preventDefault(); toggleCellStyle('bold'); return;
@@ -262,9 +264,29 @@ export const useKeyboard = () => {
       }
     };
 
+    const handlePaste = (e: ClipboardEvent) => {
+      const state = useSpreadsheetStore.getState();
+      const { paste, editingCellId } = state;
+      const target = e.target as HTMLElement;
+
+      // Don't interfere if we are editing a cell or an input field is focused
+      if (editingCellId || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
+        return;
+      }
+
+      e.preventDefault();
+      const textData = e.clipboardData?.getData('text/plain');
+      if (textData) {
+        paste(textData);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('paste', handlePaste);
+    
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('paste', handlePaste);
       resetSequence();
     };
   }, []); // Empty dependency array ensures this runs only once.

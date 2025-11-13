@@ -1,6 +1,8 @@
 
+
 // --- Core Data Types ---
-export type CellValue = string | number | boolean | null;
+// FIX: Added `Date` to `CellValue` type to allow for Date objects from XLSX import.
+export type CellValue = string | number | boolean | Date | null;
 
 export interface CellStyle {
   bold?: boolean;
@@ -56,6 +58,19 @@ export interface Filter {
     criteria?: Record<number, { values: Set<string> }>;
 }
 
+export type ChartType = 'bar' | 'line' | 'pie';
+
+export interface ChartConfig {
+  id: string;
+  range: Range;
+  type: ChartType;
+  options: {
+    title: string;
+  };
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+}
+
 // --- Structural Types ---
 export interface CellAddress {
   col: number;
@@ -86,6 +101,7 @@ export interface Sheet {
   columns: Record<number, ColumnData>;
   rows: Record<number, RowData>;
   merges: Range[];
+  charts: ChartConfig[];
   filter?: Filter;
   hiddenRows?: Set<number>;
   conditionalFormats: ConditionalFormatRule[];
@@ -96,20 +112,28 @@ export interface Sheet {
   lastUsedCol: number;
 }
 
+export interface NamedRange {
+    sheetId: string;
+    range: Range;
+}
+
 export interface Workbook {
   id: string;
   name: string;
   sheets: Record<string, Sheet>; // Keyed by sheet ID
   activeSheetId: string;
+  namedRanges?: Record<string, NamedRange>;
 }
 
 export interface ImportResult {
   sheets: Record<string, Sheet>;
   activeSheet: string;
+  aiFormulas?: { cellId: string, formula: string }[];
 }
 
 // --- Store Types ---
 export type MoveDirection = 'up' | 'down' | 'left' | 'right';
+export type BorderType = 'all' | 'outline' | 'top' | 'bottom' | 'left' | 'right' | 'thick-outline';
 
 export interface BaseState {
     workbook: Workbook | null;
@@ -117,6 +141,9 @@ export interface BaseState {
     isDataValidationDialogOpen: boolean;
     activeFilterMenu: { col: number } | null;
     isSortDialogOpen: boolean;
+    isChartBuilderOpen: boolean;
+    activeChartId: string | null;
+    isAiAnalyzing: boolean;
 }
 
 export interface WorkbookSlice {
@@ -129,6 +156,12 @@ export interface WorkbookSlice {
     setActiveSheet: (sheetId: string) => void;
     toggleConditionalFormattingPanel: () => void;
     toggleDataValidationDialog: () => void;
+    defineName: (name: string, range: Range, sheetId: string) => void;
+    toggleChartBuilder: () => void;
+    setAiAnalyzing: (isAnalyzing: boolean) => void;
+    importFloorPlan: (cells: { row: number; col: number; color: string }[]) => void;
+    // FIX: Added 'runAiAutoFormat' to satisfy the SpreadsheetStore type requirement.
+    runAiAutoFormat: () => void;
 }
 
 export interface SelectionSlice {
@@ -166,7 +199,8 @@ export interface StyleSlice {
     setNumberFormat: (format: string) => void;
     increaseFontSize: () => void;
     decreaseFontSize: () => void;
-    addOutlineBorderToSelection: () => void;
+    // FIX: Replaced 'addOutlineBorderToSelection' with the more generic 'setBorders' to support multiple border types.
+    setBorders: (type: BorderType) => void;
     removeBordersFromSelection: () => void;
     increaseDecimalPlaces: () => void;
     decreaseDecimalPlaces: () => void;
@@ -234,4 +268,11 @@ export interface SortSlice {
     sortSheet: (col: number, direction: 'asc' | 'desc', hasHeader: boolean) => void;
 }
 
-export type SpreadsheetStore = BaseState & WorkbookSlice & SelectionSlice & StyleSlice & ClipboardSlice & DataSlice & StructureSlice & HistorySlice & ConditionalFormatSlice & DataValidationSlice & FilterSlice & SortSlice;
+export interface ChartSlice {
+    addChart: (config: Omit<ChartConfig, 'id'>) => void;
+    updateChart: (chartId: string, updates: Partial<ChartConfig>) => void;
+    deleteChart: (chartId: string) => void;
+    setActiveChart: (chartId: string | null) => void;
+}
+
+export type SpreadsheetStore = BaseState & WorkbookSlice & SelectionSlice & StyleSlice & ClipboardSlice & DataSlice & StructureSlice & HistorySlice & ConditionalFormatSlice & DataValidationSlice & FilterSlice & SortSlice & ChartSlice;

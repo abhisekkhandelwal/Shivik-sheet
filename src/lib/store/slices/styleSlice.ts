@@ -1,6 +1,6 @@
-
 import { StateCreator } from 'zustand';
-import { SpreadsheetStore, StyleSlice } from '../types';
+// FIX: Imported BorderType to be used in the new 'setBorders' function.
+import { SpreadsheetStore, StyleSlice, BorderType } from '../types';
 import { sortRange } from '../../utils/rangeUtils';
 import { addressToId } from '../../utils/cellUtils';
 import { getOrCreateCell, addSnapshot } from '../storeHelpers';
@@ -107,24 +107,38 @@ export const createStyleSlice: StateCreator<SpreadsheetStore, [['zustand/immer',
     });
   },
 
-  addOutlineBorderToSelection: () => {
+  // FIX: Replaced 'addOutlineBorderToSelection' with 'setBorders' to handle various border types.
+  setBorders: (type: BorderType) => {
     set(state => {
         if(!state.workbook) return;
         const sheet = state.workbook.sheets[state.workbook.activeSheetId];
         if(!sheet) return;
         const sorted = sortRange(sheet.selection);
-        const borderStyle = '1px solid #000';
+        const thin = '1px solid #000000';
+        const thick = '2px solid #000000';
 
-        for (let row = sorted.start.row; row <= sorted.end.row; row++) {
-            for (let col = sorted.start.col; col <= sorted.end.col; col++) {
-                const cellId = addressToId({col, row});
-                const cell = getOrCreateCell(sheet, cellId);
+        for (let r = sorted.start.row; r <= sorted.end.row; r++) {
+            for (let c = sorted.start.col; c <= sorted.end.col; c++) {
+                const cell = getOrCreateCell(sheet, addressToId({col: c, row: r}));
                 
-                if(row === sorted.start.row) cell.style.borderTop = borderStyle;
-                if(row === sorted.end.row) cell.style.borderBottom = borderStyle;
-                if(col === sorted.start.col) cell.style.borderLeft = borderStyle;
-                if(col === sorted.end.col) cell.style.borderRight = borderStyle;
-                sheet.data[cellId] = cell;
+                if (type === 'all') {
+                    cell.style.borderTop = thin; cell.style.borderBottom = thin;
+                    cell.style.borderLeft = thin; cell.style.borderRight = thin;
+                } else if (type === 'outline' || type === 'thick-outline') {
+                    const style = type === 'thick-outline' ? thick : thin;
+                    if (r === sorted.start.row) cell.style.borderTop = style;
+                    if (r === sorted.end.row) cell.style.borderBottom = style;
+                    if (c === sorted.start.col) cell.style.borderLeft = style;
+                    if (c === sorted.end.col) cell.style.borderRight = style;
+                } else if (type === 'top') {
+                    if (r === sorted.start.row) cell.style.borderTop = thin;
+                } else if (type === 'bottom') {
+                    if (r === sorted.end.row) cell.style.borderBottom = thin;
+                } else if (type === 'left') {
+                    if (c === sorted.start.col) cell.style.borderLeft = thin;
+                } else if (type === 'right') {
+                    if (c === sorted.end.col) cell.style.borderRight = thin;
+                }
             }
         }
     });

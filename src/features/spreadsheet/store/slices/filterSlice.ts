@@ -1,6 +1,6 @@
 
 import { StateCreator } from 'zustand';
-import { SpreadsheetStore, FilterSlice, Sheet } from '../types';
+import { SpreadsheetStore, FilterSlice, Sheet } from '../../../../lib/store/types';
 import { addSnapshot } from '../storeHelpers';
 import { sortRange, findDataRegion } from '../../utils/rangeUtils';
 import { addressToId, getDisplayValue } from '../../utils/cellUtils';

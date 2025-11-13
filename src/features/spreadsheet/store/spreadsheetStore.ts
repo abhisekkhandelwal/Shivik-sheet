@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { createWorkbookSlice } from './slices/workbookSlice';
@@ -11,7 +12,8 @@ import { createConditionalFormatSlice } from './slices/conditionalFormatSlice';
 import { createDataValidationSlice } from './slices/dataValidationSlice';
 import { createFilterSlice } from './slices/filterSlice';
 import { createSortSlice } from './slices/sortSlice';
-import { SpreadsheetStore, Sheet } from './types';
+import { createChartSlice } from '../../../lib/store/slices/chartSlice';
+import { SpreadsheetStore, Sheet } from '../../../lib/store/types';
 
 export const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 30, 36, 48, 60, 72];
 
@@ -33,6 +35,9 @@ export const useSpreadsheetStore = create<SpreadsheetStore>()(
     selectedSuggestionIndex: 0,
     activeFilterMenu: null,
     isSortDialogOpen: false,
+    isChartBuilderOpen: false,
+    activeChartId: null,
+    isAiAnalyzing: false,
 
     // --- Slices ---
     ...createWorkbookSlice(...a),
@@ -46,6 +51,7 @@ export const useSpreadsheetStore = create<SpreadsheetStore>()(
     ...createDataValidationSlice(...a),
     ...createFilterSlice(...a),
     ...createSortSlice(...a),
+    ...createChartSlice(...a),
   }))
 );
 

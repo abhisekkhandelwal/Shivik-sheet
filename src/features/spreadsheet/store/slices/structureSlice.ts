@@ -1,6 +1,6 @@
 
 import { StateCreator } from 'zustand';
-import { SpreadsheetStore, StructureSlice } from '../types';
+import { SpreadsheetStore, StructureSlice } from '../../../../lib/store/types';
 import { findMergeForCell, sortRange, doesRangeOverlapMerges } from '../../utils/rangeUtils';
 import { addSnapshot } from '../storeHelpers';
 

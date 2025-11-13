@@ -1,10 +1,10 @@
 
 import { StateCreator } from 'zustand';
-import { SpreadsheetStore, SelectionSlice, DataValidationRule, Range } from '../types';
+import { SpreadsheetStore, SelectionSlice, DataValidationRule, Range } from '../../../../lib/store/types';
 import { findMergeForCell, sortRange, isCellInRange } from '../../utils/rangeUtils';
 import { addressToId, idToAddress, isFormula } from '../../utils/cellUtils';
 import { getOrCreateCell, updateCellAndDependents, recalculate, addSnapshot } from '../storeHelpers';
-import { FUNCTION_NAMES } from '../../services/formula';
+import { FUNCTION_NAMES } from '../../../../lib/formulas';
 
 const validateValue = (value: string, rule: DataValidationRule): boolean => {
     switch(rule.type) {
@@ -216,10 +216,11 @@ export const createSelectionSlice: StateCreator<SpreadsheetStore, [['zustand/imm
     }
 
     set(state => {
-      const sheet = state.workbook!.sheets[state.workbook!.activeSheetId];
-      if (!sheet) return;
-      const changedIds = updateCellAndDependents(sheet, editingCellId, finalEditingValue);
-      recalculate(sheet, changedIds);
+      if (!state.workbook) return;
+      const sheet = state.workbook.sheets[state.workbook.activeSheetId];
+      if (!sheet || !editingCellId) return;
+      const changedIds = updateCellAndDependents(state.workbook, sheet, editingCellId, finalEditingValue);
+      recalculate(state.workbook, sheet, changedIds);
     });
 
     get().cancelEditing();

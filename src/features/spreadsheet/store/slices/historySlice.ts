@@ -1,6 +1,6 @@
 
 import { StateCreator } from 'zustand';
-import { SpreadsheetStore, HistorySlice } from '../types';
+import { SpreadsheetStore, HistorySlice } from '../../../../lib/store/types';
 
 const rehydrateSet = (key: string, value: any) => {
     if (typeof value === 'object' && value !== null && value._type === 'set') {

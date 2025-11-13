@@ -1,12 +1,12 @@
-
 import React from 'react';
 import { useSpreadsheet } from '../../hooks/useSpreadsheet';
 import { addressToId } from '../../lib/utils/cellUtils';
 import { findMergeForCell, sortRange, doesRangeOverlapMerges } from '../../lib/utils/rangeUtils';
-import { FONT_SIZES, useSpreadsheetStore } from '../../lib/store/spreadsheetStore';
+import { FONT_SIZES } from '../../lib/store/spreadsheetStore';
 import RibbonDropdown, { DropdownItem } from '../ui/RibbonDropdown';
 import { importFile } from '../../lib/file/import';
 import { exportToCSV, exportToJSON } from '../../lib/file/export';
+import { analyzeFloorPlanImage } from '../../lib/ai/floorPlanAnalyzer';
 
 const FONT_FAMILIES = ['Aptos Narrow', 'Arial', 'Calibri', 'Courier New', 'Times New Roman', 'Verdana'];
 const NUMBER_FORMATS = [
@@ -129,24 +129,57 @@ const Toolbar: React.FC = () => {
         activeSheet, toggleCellStyle, setCellStyle, setSelectionTextAlign, setSelectionVAlign,
         toggleWrapText, setNumberFormat, mergeSelection, unmergeSelection, copySelection,
         cutSelection, increaseFontSize, decreaseFontSize, clearSelection,
-        addOutlineBorderToSelection, increaseDecimalPlaces, decreaseDecimalPlaces,
+        // FIX: Replaced 'addOutlineBorderToSelection' with 'setBorders' and 'removeBordersFromSelection'
+        setBorders, removeBordersFromSelection, increaseDecimalPlaces, decreaseDecimalPlaces,
         autoSum, fillSelection, clearAll, clearFormats, averageSelection, countSelection,
         maxSelection, minSelection, insertRows, deleteRows, insertColumns, deleteColumns,
         toggleConditionalFormattingPanel, toggleDataValidationDialog,
         toggleSortDialog, toggleFilter, importWorkbook,
+        toggleChartBuilder,
+        setAiAnalyzing,
+        importFloorPlan,
     } = useSpreadsheet();
     const [activeTab, setActiveTab] = React.useState('Home');
     const fileInputRef = React.useRef<HTMLInputElement>(null);
+    const imageInputRef = React.useRef<HTMLInputElement>(null);
 
     const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             try {
-                const result = await importFile(file);
+                const result = await importFile(file, setAiAnalyzing);
                 importWorkbook(result, file.name);
             } catch (error: any) {
                 console.error("Failed to import file:", error);
                 alert(`Error importing file: ${error.message}`);
+            }
+            if(e.target) e.target.value = '';
+        }
+    };
+
+    const handleImageImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setAiAnalyzing(true);
+            try {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    const base64Image = (event.target?.result as string).split(',')[1];
+                    if (base64Image) {
+                       const cells = await analyzeFloorPlanImage(base64Image);
+                       importFloorPlan(cells);
+                    }
+                    setAiAnalyzing(false);
+                };
+                reader.onerror = () => {
+                    alert('Error reading image file.');
+                    setAiAnalyzing(false);
+                }
+                reader.readAsDataURL(file);
+            } catch (error: any) {
+                console.error("Failed to process image:", error);
+                alert(`Error processing image: ${error.message}`);
+                setAiAnalyzing(false);
             }
             if(e.target) e.target.value = '';
         }
@@ -183,6 +216,17 @@ const Toolbar: React.FC = () => {
     };
 
     const autoSumItems = [ { label: 'Sum', action: autoSum }, { label: 'Average', action: averageSelection }, { label: 'Count Numbers', action: countSelection }, { label: 'Max', action: maxSelection }, { label: 'Min', action: minSelection }, ];
+    // FIX: Added borderItems for the new RibbonDropdown
+    const borderItems: DropdownItem[] = [
+        { label: 'All Borders', action: () => setBorders('all') },
+        { label: 'Outline Borders', action: () => setBorders('outline') },
+        { label: 'Thick Outline Border', action: () => setBorders('thick-outline') },
+        { label: 'Top Border', action: () => setBorders('top') },
+        { label: 'Bottom Border', action: () => setBorders('bottom') },
+        { label: 'Left Border', action: () => setBorders('left') },
+        { label: 'Right Border', action: () => setBorders('right') },
+        { label: 'No Border', action: removeBordersFromSelection },
+    ];
     const fillItems = [ { label: 'Fill Down', action: () => fillSelection('down') } ];
     const clearItems = [ { label: 'Clear All', action: clearAll }, { label: 'Clear Formats', action: clearFormats }, { label: 'Clear Contents', action: clearSelection }, ];
     const insertItems = [ { label: 'Insert Sheet Rows', action: insertRows }, { label: 'Insert Sheet Columns', action: insertColumns } ];
@@ -201,7 +245,9 @@ const Toolbar: React.FC = () => {
             <div className="flex items-center px-1 border-b border-gray-200">
                 <TabButton name="File" />
                 <TabButton name="Home" />
+                <TabButton name="Insert" />
                 <TabButton name="Data" />
+                <TabButton name="AI Tools" />
             </div>
             <div className={`flex items-stretch px-1 bg-gray-200 ${activeTab !== 'File' ? 'hidden' : ''}`}>
                  <RibbonSection label="File Operations" className="space-x-1">
@@ -264,7 +310,8 @@ const Toolbar: React.FC = () => {
                         <RibbonButton title="Bold" onClick={() => toggleCellStyle('bold')} isActive={!!activeCellStyle.bold} className="font-bold">B</RibbonButton>
                         <RibbonButton title="Italic" onClick={() => toggleCellStyle('italic')} isActive={!!activeCellStyle.italic} className="italic">I</RibbonButton>
                         <RibbonButton title="Underline" onClick={() => toggleCellStyle('underline')} isActive={!!activeCellStyle.underline} className="underline">U</RibbonButton>
-                        <RibbonButton title="Borders" onClick={addOutlineBorderToSelection}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3zM21 9H3m18 6H3M9 3v18m6-18v18"></path></svg></RibbonButton>
+                        {/* FIX: Replaced RibbonButton with RibbonDropdown for border options */}
+                        <RibbonDropdown title="Borders" label="" items={borderItems}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3zM21 9H3m18 6H3M9 3v18m6-18v18"></path></svg></RibbonDropdown>
                         <ColorPicker styleKey="fillColor" title="Fill Color"><div className="flex flex-col items-center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path></svg><div className="w-4 h-1 border border-gray-500" style={{ backgroundColor: activeCellStyle.fillColor ?? '#ffffff' }}/></div></ColorPicker>
                         <ColorPicker styleKey="textColor" title="Text Color"><div className="flex flex-col items-center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7V6a2 2 0 0 1 2-2h2M4 17v1a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v1M16 20h2a2 2 0 0 0 2-2v-1M12 4v16M8 4h8"></path></svg><div className="w-4 h-1 border border-gray-500" style={{ backgroundColor: activeCellStyle.textColor ?? '#000000' }}/></div></ColorPicker>
                     </div>
@@ -300,10 +347,35 @@ const Toolbar: React.FC = () => {
                     <RibbonDropdown title="Find & Select" label="Find & Select" items={[]} disabled><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></RibbonDropdown>
                 </RibbonSection>
             </div>
+            <div className={`flex items-stretch px-1 bg-gray-200 ${activeTab !== 'Insert' ? 'hidden' : ''}`}>
+                 <RibbonSection label="Charts" className="space-x-1">
+                    <RibbonLargeDropdownButton title="Insert Chart" label="Chart" onClick={() => toggleChartBuilder()}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V8"/><path d="M13 17V3"/><path d="M8 17v-5"/></svg>
+                    </RibbonLargeDropdownButton>
+                </RibbonSection>
+            </div>
             <div className={`flex items-stretch px-1 bg-gray-200 ${activeTab !== 'Data' ? 'hidden' : ''}`}>
                  <RibbonSection label="Data Tools" className="space-x-1">
                     <RibbonLargeDropdownButton title="Data Validation" label="Data Validation" onClick={toggleDataValidationDialog}>
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM9 12l2 2 4-4"/></svg>
+                    </RibbonLargeDropdownButton>
+                </RibbonSection>
+            </div>
+             <div className={`flex items-stretch px-1 bg-gray-200 ${activeTab !== 'AI Tools' ? 'hidden' : ''}`}>
+                 <RibbonSection label="Generative AI" className="space-x-1">
+                    <input
+                        type="file"
+                        ref={imageInputRef}
+                        className="hidden"
+                        onChange={handleImageImport}
+                        accept="image/*"
+                    />
+                    <RibbonLargeDropdownButton 
+                        title="Import Floor Plan from Image" 
+                        label="Floor Plan" 
+                        onClick={() => imageInputRef.current?.click()}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
                     </RibbonLargeDropdownButton>
                 </RibbonSection>
             </div>

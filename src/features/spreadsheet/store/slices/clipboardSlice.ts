@@ -1,6 +1,6 @@
 
 import { StateCreator } from 'zustand';
-import { SpreadsheetStore, ClipboardSlice, CellData } from '../types';
+import { SpreadsheetStore, ClipboardSlice, CellData } from '../../../../lib/store/types';
 import { sortRange } from '../../utils/rangeUtils';
 import { addressToId, idToAddress } from '../../utils/cellUtils';
 import { updateCellAndDependents, recalculate, getOrCreateCell, getDefaultCellStyle, addSnapshot } from '../storeHelpers';
@@ -41,7 +41,7 @@ export const createClipboardSlice: StateCreator<SpreadsheetStore, [['zustand/imm
                   const targetRow = pasteTargetCell.row + rIdx;
                   const targetCol = pasteTargetCell.col + cIdx;
                   const cellId = addressToId({ col: targetCol, row: targetRow });
-                  const changed = updateCellAndDependents(sheet, cellId, cellText);
+                  const changed = updateCellAndDependents(state.workbook!, sheet, cellId, cellText);
                   changed.forEach(id => allChangedIds.add(id));
               });
           });
@@ -67,7 +67,7 @@ export const createClipboardSlice: StateCreator<SpreadsheetStore, [['zustand/imm
             const targetAddr = { col: sourceAddr.col + colOffset, row: sourceAddr.row + rowOffset };
             const targetId = addressToId(targetAddr);
             
-            const changed = updateCellAndDependents(sheet, targetId, cellData.raw);
+            const changed = updateCellAndDependents(state.workbook!, sheet, targetId, cellData.raw);
             changed.forEach(id => allChangedIds.add(id));
 
             const targetCell = getOrCreateCell(sheet, targetId);
@@ -80,7 +80,7 @@ export const createClipboardSlice: StateCreator<SpreadsheetStore, [['zustand/imm
                   for (let c = sortedClip.start.col; c <= sortedClip.end.col; c++) {
                       const id = addressToId({ col: c, row: r });
                       if (sheet.data[id]) {
-                         const changed = updateCellAndDependents(sheet, id, '');
+                         const changed = updateCellAndDependents(state.workbook!, sheet, id, '');
                          changed.forEach(cid => allChangedIds.add(cid));
                          const clearedCell = sheet.data[id];
                          if (clearedCell) clearedCell.style = getDefaultCellStyle();
@@ -91,7 +91,7 @@ export const createClipboardSlice: StateCreator<SpreadsheetStore, [['zustand/imm
               state.clipboardRange = null;
           }
       }
-      recalculate(sheet, allChangedIds);
+      recalculate(state.workbook!, sheet, allChangedIds);
     });
     addSnapshot(get, set);
   },

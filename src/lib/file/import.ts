@@ -1,9 +1,9 @@
-
 import * as XLSX from 'xlsx';
-import { CellData, Sheet, ImportResult } from '../store/types';
-import { colIndexToLabel } from '../utils/cellUtils';
+import { ImportResult, Sheet, CellData, CellStyle } from '../store/types';
+import { addressToId, idToAddress, colIndexToLabel } from '../utils/cellUtils';
+import { analyzeSheetFormat, applyAiFormattingRules } from '../ai/formatAnalyzer';
 
-const getDefaultCellStyle = (): CellData['style'] => ({
+const getDefaultCellStyle = (): CellStyle => ({
     fontFamily: 'Inter',
     fontSize: 11,
     textColor: '#000000',
@@ -13,7 +13,71 @@ const getDefaultCellStyle = (): CellData['style'] => ({
     wrap: false,
 });
 
-export const parseCSV = (content: string, sheetName: string = 'Sheet1'): ImportResult => {
+// This is the raw data parser, without styles from the xlsx file itself
+const parseXLSXData = (content: ArrayBuffer): ImportResult => {
+    const workbook = XLSX.read(content, { type: 'buffer', cellDates: true });
+    const sheets: Record<string, Sheet> = {};
+    let firstSheetId = '';
+
+    workbook.SheetNames.forEach((sheetName, index) => {
+        const worksheet = workbook.Sheets[sheetName];
+        const data: Record<string, CellData> = {};
+        let lastUsedRow = 0;
+        let lastUsedCol = 0;
+
+        const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+        lastUsedRow = range.e.r;
+        lastUsedCol = range.e.c;
+
+        for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const cell_address = { c: C, r: R };
+                const cell_ref = XLSX.utils.encode_cell(cell_address);
+                const cell = worksheet[cell_ref];
+
+                if (cell) {
+                    const cellId = colIndexToLabel(C) + (R + 1);
+                    const rawValue = cell.f ? `=${cell.f}` : (cell.w ?? String(cell.v ?? ''));
+                    data[cellId] = {
+                        id: cellId,
+                        raw: rawValue,
+                        value: cell.v ?? null,
+                        style: getDefaultCellStyle(),
+                    };
+                }
+            }
+        }
+
+        const sheetId = `sheet_${Date.now()}_${index}`;
+        if(index === 0) firstSheetId = sheetId;
+        
+        sheets[sheetId] = {
+            id: sheetId,
+            name: sheetName,
+            data,
+            columns: {},
+            rows: {},
+            merges: (worksheet['!merges'] || []).map((m: any) => ({
+                start: { col: m.s.c, row: m.s.r },
+                end: { col: m.e.c, row: m.e.r },
+            })),
+            charts: [],
+            filter: undefined,
+            hiddenRows: new Set(),
+            conditionalFormats: [],
+            dataValidations: [],
+            activeCell: { col: 0, row: 0 },
+            selection: { start: { col: 0, row: 0 }, end: { col: 0, row: 0 } },
+            lastUsedRow,
+            lastUsedCol,
+        };
+    });
+
+    return { sheets, activeSheet: firstSheetId };
+}
+
+
+const parseCSV = (content: string, sheetName: string = 'Sheet1'): ImportResult => {
   const lines = content.split(/\r?\n/);
   const data: Record<string, CellData> = {};
   let lastUsedRow = -1;
@@ -64,6 +128,7 @@ export const parseCSV = (content: string, sheetName: string = 'Sheet1'): ImportR
     columns: {},
     rows: {},
     merges: [],
+    charts: [],
     filter: undefined,
     hiddenRows: new Set(),
     conditionalFormats: [],
@@ -77,7 +142,7 @@ export const parseCSV = (content: string, sheetName: string = 'Sheet1'): ImportR
   return { sheets: { [sheetId]: newSheet }, activeSheet: sheetId };
 };
 
-export const parseJSON = (content: string, sheetName: string = 'Sheet1'): ImportResult => {
+const parseJSON = (content: string, sheetName: string = 'Sheet1'): ImportResult => {
   try {
     const jsonData = JSON.parse(content);
     const data: Record<string, CellData> = {};
@@ -113,6 +178,7 @@ export const parseJSON = (content: string, sheetName: string = 'Sheet1'): Import
         columns: {},
         rows: {},
         merges: [],
+        charts: [],
         filter: undefined,
         hiddenRows: new Set(),
         conditionalFormats: [],
@@ -129,82 +195,117 @@ export const parseJSON = (content: string, sheetName: string = 'Sheet1'): Import
   }
 };
 
-export const parseXLSX = (content: ArrayBuffer): ImportResult => {
-    const workbook = XLSX.read(content, { type: 'buffer' });
-    const sheets: Record<string, Sheet> = {};
-    let firstSheetId = '';
 
-    workbook.SheetNames.forEach((sheetName, index) => {
-        const worksheet = workbook.Sheets[sheetName];
-        const data: Record<string, CellData> = {};
-        let lastUsedRow = 0;
-        let lastUsedCol = 0;
-
-        const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-        lastUsedRow = range.e.r;
-        lastUsedCol = range.e.c;
-
-        for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const cell_address = { c: C, r: R };
-                const cell_ref = XLSX.utils.encode_cell(cell_address);
-                const cell = worksheet[cell_ref];
-
-                if (cell) {
-                    const cellId = colIndexToLabel(C) + (R + 1);
-                    const rawValue = cell.f ? `=${cell.f}` : (cell.w ?? String(cell.v ?? ''));
-                    data[cellId] = {
-                        id: cellId,
-                        raw: rawValue,
-                        value: cell.v ?? null,
-                        style: getDefaultCellStyle(),
-                    };
-                }
-            }
-        }
-
-        const sheetId = `sheet_${Date.now()}_${index}`;
-        if(index === 0) firstSheetId = sheetId;
-        
-        sheets[sheetId] = {
-            id: sheetId,
-            name: sheetName,
-            data,
-            columns: {},
-            rows: {},
-            merges: (worksheet['!merges'] || []).map((m: any) => ({
-                start: { col: m.s.c, row: m.s.r },
-                end: { col: m.e.c, row: m.e.r },
-            })),
-            filter: undefined,
-            hiddenRows: new Set(),
-            conditionalFormats: [],
-            dataValidations: [],
-            activeCell: { col: 0, row: 0 },
-            selection: { start: { col: 0, row: 0 }, end: { col: 0, row: 0 } },
-            lastUsedRow,
-            lastUsedCol,
-        };
-    });
-
-    return { sheets, activeSheet: firstSheetId };
-}
-
-export const importFile = async (file: File): Promise<ImportResult> => {
+export const importFile = async (file: File, setAiAnalyzing: (isAnalyzing: boolean) => void): Promise<ImportResult> => {
   const extension = file.name.split('.').pop()?.toLowerCase();
   
   if (extension === 'xlsx') {
       return new Promise((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = (e) => {
+          reader.onload = async (e) => {
               try {
                   const content = e.target?.result as ArrayBuffer;
-                  resolve(parseXLSX(content));
+                  
+                  // --- AI ANALYSIS STEP ---
+                  setAiAnalyzing(true);
+                  
+                  const workbookForAi = XLSX.read(content, { 
+                      type: 'buffer', 
+                      cellStyles: true,
+                      cellNF: true // Enable number format extraction
+                  });
+                  
+                  const firstSheetName = workbookForAi.SheetNames[0];
+                  if (!firstSheetName) {
+                    setAiAnalyzing(false);
+                    return reject(new Error("No sheets found in the workbook."));
+                  }
+                  const worksheetForAi = workbookForAi.Sheets[firstSheetName];
+                  
+                  const argbToRgb = (argb: string | undefined): string | undefined => {
+                      if (!argb) return undefined;
+                      if (argb.length === 8) return `#${argb.substring(2)}`;
+                      if (argb.length === 6) return `#${argb}`;
+                      return undefined;
+                  };
+                  
+                  const getColor = (colorObj: any): string | undefined => {
+                      if (!colorObj) return undefined;
+                      if (colorObj.rgb) return argbToRgb(colorObj.rgb);
+                      if (colorObj.theme !== undefined) {
+                          const themeDefaults: Record<number, string> = { 0: '#000000', 1: '#FFFFFF', 2: '#44546A', 3: '#E7E6E6', 4: '#4472C4', 5: '#ED7D31', 6: '#A5A5A5', 7: '#FFC000', 8: '#5B9BD5', 9: '#70AD47' };
+                          return themeDefaults[colorObj.theme] || undefined;
+                      }
+                      return undefined;
+                  };
+                  
+                  const simpleCells: any[] = [];
+                  const range = XLSX.utils.decode_range(worksheetForAi['!ref'] || 'A1');
+                  
+                  for (let R = range.s.r; R <= Math.min(range.e.r, 50); ++R) { // Limit rows for performance
+                      for (let C = range.s.c; C <= range.e.c; ++C) {
+                          const cellId = addressToId({col: C, row: R});
+                          const xlsxCell = worksheetForAi[cellId];
+                          
+                          if (xlsxCell && xlsxCell.v !== undefined) {
+                              const style = xlsxCell.s || {};
+                              const originalStyle: any = {};
+                              
+                              if (style.font) {
+                                  if (style.font.bold) originalStyle.bold = true;
+                                  if (style.font.italic) originalStyle.italic = true;
+                                  if (style.font.underline) originalStyle.underline = true;
+                                  const textColor = getColor(style.font.color);
+                                  if (textColor) originalStyle.textColor = textColor;
+                              }
+                              
+                              if (style.fill && style.fill.fgColor) {
+                                  const fillColor = getColor(style.fill.fgColor);
+                                  if (fillColor) originalStyle.fillColor = fillColor;
+                              }
+                              
+                              if (style.alignment) {
+                                  if (style.alignment.horizontal) originalStyle.textAlign = style.alignment.horizontal;
+                              }
+                              
+                              const cellPayload: any = {
+                                id: cellId,
+                                value: xlsxCell.v,
+                              };
+                              if (Object.keys(originalStyle).length > 0) {
+                                  cellPayload.originalStyle = originalStyle;
+                              }
+                              if (xlsxCell.z) { // .z is the number format string
+                                  cellPayload.numberFormat = xlsxCell.z;
+                              }
+                              simpleCells.push(cellPayload);
+                          }
+                      }
+                  }
+                  
+                  const formattingRules = await analyzeSheetFormat(simpleCells);
+                  
+                  let importResult = parseXLSXData(content);
+
+                  if (formattingRules && formattingRules.length > 0) {
+                    Object.values(importResult.sheets).forEach(sheet => {
+                        applyAiFormattingRules(sheet, formattingRules);
+                    });
+                  }
+                  
+                  setAiAnalyzing(false);
+                  resolve(importResult);
+
               } catch (error) {
+                  console.error('Import error:', error);
+                  setAiAnalyzing(false);
                   reject(error);
               }
           };
-          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.onerror = () => {
+              setAiAnalyzing(false);
+              reject(new Error('Failed to read file'));
+          };
           reader.readAsArrayBuffer(file);
       });
   }

@@ -1,5 +1,6 @@
+
 import { StateCreator } from 'zustand';
-import { SpreadsheetStore, ConditionalFormatSlice, ConditionalFormatRule } from '../types';
+import { SpreadsheetStore, ConditionalFormatSlice, ConditionalFormatRule } from '../../../../lib/store/types';
 import { addSnapshot } from '../storeHelpers';
 
 export const createConditionalFormatSlice: StateCreator<SpreadsheetStore, [['zustand/immer', never]], [], ConditionalFormatSlice> = (set, get) => ({

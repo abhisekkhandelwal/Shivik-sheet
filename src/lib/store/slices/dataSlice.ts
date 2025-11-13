@@ -1,4 +1,3 @@
-
 import { StateCreator } from 'zustand';
 import { SpreadsheetStore, DataSlice } from '../types';
 import { sortRange } from '../../utils/rangeUtils';
@@ -20,12 +19,12 @@ export const createDataSlice: StateCreator<SpreadsheetStore, [['zustand/immer', 
                 const cellId = addressToId({col, row});
                 const cell = sheet.data[cellId];
                 if(cell) {
-                    const changed = updateCellAndDependents(sheet, cellId, '');
+                    const changed = updateCellAndDependents(state.workbook, sheet, cellId, '');
                     changed.forEach(id => changedIds.add(id));
                 }
             }
         }
-        recalculate(sheet, changedIds);
+        recalculate(state.workbook, sheet, changedIds);
     });
     addSnapshot(get, set);
   },
@@ -65,7 +64,7 @@ export const createDataSlice: StateCreator<SpreadsheetStore, [['zustand/immer', 
                   if (!sourceCell) continue;
                   for (let r = sorted.start.row + 1; r <= sorted.end.row; r++) {
                       const targetId = addressToId({ col: c, row: r });
-                      const changed = updateCellAndDependents(sheet, targetId, sourceCell.raw);
+                      const changed = updateCellAndDependents(state.workbook, sheet, targetId, sourceCell.raw);
                       changed.forEach(id => allChangedIds.add(id));
                       const targetCell = getOrCreateCell(sheet, targetId);
                       targetCell.style = JSON.parse(JSON.stringify(sourceCell.style));
@@ -73,7 +72,7 @@ export const createDataSlice: StateCreator<SpreadsheetStore, [['zustand/immer', 
               }
           }
           // Implement up, left, right similarly if needed.
-          recalculate(sheet, allChangedIds);
+          recalculate(state.workbook, sheet, allChangedIds);
       });
       addSnapshot(get, set);
   },

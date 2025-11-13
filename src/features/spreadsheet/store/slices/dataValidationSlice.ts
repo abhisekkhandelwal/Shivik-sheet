@@ -1,5 +1,6 @@
+
 import { StateCreator } from 'zustand';
-import { SpreadsheetStore, DataValidationSlice, DataValidationRule, Range } from '../types';
+import { SpreadsheetStore, DataValidationSlice, DataValidationRule, Range } from '../../../../lib/store/types';
 import { addSnapshot } from '../storeHelpers';
 import { sortRange } from '../../utils/rangeUtils';
 

@@ -1,19 +1,21 @@
-
 import { mathFunctions } from './functions/math';
 import { logicalFunctions } from './functions/logical';
 import { textFunctions } from './functions/text';
 import { dateFunctions } from './functions/date';
 import { lookupFunctions } from './functions/lookup';
+import { financialFunctions } from './functions/financial';
 import { parser } from './parser';
-import { evaluateNode } from './evaluator';
-import { CellData } from '../store/types';
+import { evaluateNode, EvaluationContext } from './evaluator';
+
+export type { EvaluationContext };
 
 export const FUNCTIONS: Record<string, FormulaFunction> = {
   ...mathFunctions,
   ...logicalFunctions,
   ...textFunctions,
   ...dateFunctions,
-  ...lookupFunctions
+  ...lookupFunctions,
+  ...financialFunctions,
 };
 
 export type FormulaFunction = (...args: any[]) => any;
@@ -26,7 +28,8 @@ export const FUNCTION_CATEGORIES = {
   Logical: Object.keys(logicalFunctions),
   Text: Object.keys(textFunctions),
   'Date & Time': Object.keys(dateFunctions),
-  'Lookup & Reference': Object.keys(lookupFunctions)
+  'Lookup & Reference': Object.keys(lookupFunctions),
+  'Financial': Object.keys(financialFunctions),
 };
 
 export const FUNCTION_SIGNATURES: Record<string, string> = {
@@ -55,7 +58,8 @@ export const FUNCTION_SIGNATURES: Record<string, string> = {
   VLOOKUP: 'VLOOKUP(lookup_value, table_array, col_index_num, [range_lookup])',
   HLOOKUP: 'HLOOKUP(lookup_value, table_array, row_index_num, [range_lookup])',
   INDEX: 'INDEX(array, row_num, [column_num])',
-  MATCH: 'MATCH(lookup_value, lookup_array, [match_type])'
+  MATCH: 'MATCH(lookup_value, lookup_array, [match_type])',
+  PMT: 'PMT(rate, nper, pv, [fv], [type])'
 };
 
 export const hasFunction = (name: string): boolean => {
@@ -66,17 +70,17 @@ export const getFunction = (name: string): FormulaFunction | undefined => {
   return FUNCTIONS[name.toUpperCase()];
 };
 
-type Getter = (cellId: string) => CellData | undefined;
-
 export const evaluate = (
   formula: string,
-  currentCellId: string,
-  getter: Getter
+  context: EvaluationContext
 ) => {
   const dependencies = new Set<string>();
   try {
     const ast = parser.parse(formula);
-    const result = evaluateNode(ast, getter, dependencies);
+    const result = evaluateNode(ast, context, dependencies);
+    
+    // Prevent self-dependency
+    dependencies.delete(context.currentCellId);
     
     return { result, dependencies: Array.from(dependencies) };
   } catch (e: any) {

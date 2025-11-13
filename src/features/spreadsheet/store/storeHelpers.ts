@@ -1,6 +1,6 @@
-import { evaluate } from '../services/formula';
+import { evaluate, EvaluationContext } from '../../../lib/formulas';
 import { addressToId, isFormula } from '../utils/cellUtils';
-import { Sheet, CellData, CellStyle, Workbook, SpreadsheetStore } from './types';
+import { Sheet, CellData, CellStyle, Workbook, SpreadsheetStore } from '../../../lib/store/types';
 
 const MAX_HISTORY_SIZE = 100;
 
@@ -21,6 +21,7 @@ export const createInitialSheet = (name: string): Sheet => ({
   columns: {},
   rows: {},
   merges: [],
+  charts: [],
   filter: undefined,
   hiddenRows: new Set(),
   conditionalFormats: [],
@@ -42,7 +43,7 @@ export const getOrCreateCell = (sheet: Sheet, cellId: string): CellData => {
   return { id: cellId, raw: '', value: null, style: getDefaultCellStyle() };
 };
 
-export const updateCellAndDependents = (sheet: Sheet, cellId: string, rawValue: string): Set<string> => {
+export const updateCellAndDependents = (workbook: Workbook, sheet: Sheet, cellId: string, rawValue: string): Set<string> => {
     const oldCell = getOrCreateCell(sheet, cellId);
     
     if (oldCell.dependencies) {
@@ -59,7 +60,8 @@ export const updateCellAndDependents = (sheet: Sheet, cellId: string, rawValue: 
     
     if (isFormula(rawValue)) {
         newCell.formula = rawValue;
-        const { result, error, dependencies } = evaluate(rawValue, cellId, (id) => sheet.data[id]);
+        const context: EvaluationContext = { workbook, activeSheetId: sheet.id, currentCellId: cellId };
+        const { result, error, dependencies } = evaluate(rawValue, context);
         newCell.value = error || result;
         newCell.error = error;
         newCell.dependencies = dependencies;
@@ -85,7 +87,7 @@ export const updateCellAndDependents = (sheet: Sheet, cellId: string, rawValue: 
     return new Set<string>([cellId]);
 };
 
-export const recalculate = (sheet: Sheet, changedCellIds: Set<string>) => {
+export const recalculate = (workbook: Workbook, sheet: Sheet, changedCellIds: Set<string>) => {
     const queue = Array.from(changedCellIds);
     const visited = new Set<string>();
 
@@ -99,7 +101,8 @@ export const recalculate = (sheet: Sheet, changedCellIds: Set<string>) => {
             for(const dependentId of cell.dependents) {
                 const dependentCell = sheet.data[dependentId];
                 if(dependentCell?.formula) {
-                   const { result, error } = evaluate(dependentCell.formula, dependentId, (id) => sheet.data[id]);
+                   const context: EvaluationContext = { workbook, activeSheetId: sheet.id, currentCellId: dependentId };
+                   const { result, error } = evaluate(dependentCell.formula, context);
                    dependentCell.value = error || result;
                    dependentCell.error = error;
                    queue.push(dependentId);
@@ -109,7 +112,7 @@ export const recalculate = (sheet: Sheet, changedCellIds: Set<string>) => {
     }
 };
 
-export const addSnapshot = (get: () => SpreadsheetStore, set: (partial: Partial<SpreadsheetStore>) => void) => {
+export const addSnapshot = (get: () => SpreadsheetStore, set: (partial: Partial<SpreadsheetStore> | ((state: SpreadsheetStore) => void)) => void) => {
     const { workbook, history, historyIndex } = get();
     if(!workbook) return;
 
@@ -154,8 +157,8 @@ export const insertFormula = (state: SpreadsheetStore, formulaName: 'SUM' | 'AVE
         const endCell = addressToId({ col, row: row - 1});
         const formula = `=${formulaName}(${startCell}:${endCell})`;
         const cellId = addressToId({col, row});
-        const changed = updateCellAndDependents(sheet, cellId, formula);
-        recalculate(sheet, changed);
+        const changed = updateCellAndDependents(state.workbook, sheet, cellId, formula);
+        recalculate(state.workbook, sheet, changed);
         return;
     }
 
@@ -173,7 +176,7 @@ export const insertFormula = (state: SpreadsheetStore, formulaName: 'SUM' | 'AVE
         const endCell = addressToId({ col: col - 1, row});
         const formula = `=${formulaName}(${startCell}:${endCell})`;
         const cellId = addressToId({col, row});
-        const changed = updateCellAndDependents(sheet, cellId, formula);
-        recalculate(sheet, changed);
+        const changed = updateCellAndDependents(state.workbook, sheet, cellId, formula);
+        recalculate(state.workbook, sheet, changed);
     }
 };

@@ -73,11 +73,20 @@ const Cell: React.FC<CellProps> = ({ col, row }) => {
     (id) => activeSheet.data[id]
   );
   
-  const customStyle: React.CSSProperties = { ...finalStyle };
+  const customStyle: React.CSSProperties = {};
 
+  if (finalStyle.fillColor) customStyle.backgroundColor = finalStyle.fillColor;
+  if (finalStyle.textColor) customStyle.color = finalStyle.textColor;
+  if (finalStyle.fontFamily) customStyle.fontFamily = finalStyle.fontFamily;
+  if (finalStyle.fontSize) customStyle.fontSize = `${finalStyle.fontSize}pt`;
   if (finalStyle.bold) customStyle.fontWeight = 'bold';
   if (finalStyle.italic) customStyle.fontStyle = 'italic';
   if (finalStyle.underline) customStyle.textDecoration = 'underline';
+
+  if (finalStyle.borderTop) customStyle.borderTop = finalStyle.borderTop;
+  if (finalStyle.borderBottom) customStyle.borderBottom = finalStyle.borderBottom;
+  if (finalStyle.borderLeft) customStyle.borderLeft = finalStyle.borderLeft;
+  if (finalStyle.borderRight) customStyle.borderRight = finalStyle.borderRight;
   
   const hAlignMap = {
     left: 'flex-start',
@@ -127,8 +136,8 @@ const Cell: React.FC<CellProps> = ({ col, row }) => {
   
   let cellClassName = 'relative h-full p-1 text-sm overflow-hidden box-border flex';
   
-  if (!customStyle.borderRight) cellClassName += ' border-r border-gray-300';
-  if (!customStyle.borderBottom) cellClassName += ' border-b border-gray-300';
+  if (!finalStyle.borderRight) cellClassName += ' border-r border-gray-300';
+  if (!finalStyle.borderBottom) cellClassName += ' border-b border-gray-300';
   
   if (isActive && !isEditing) {
     cellClassName += ' border-2 border-blue-500';

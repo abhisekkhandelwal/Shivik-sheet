@@ -1,9 +1,12 @@
+
+
 import React, { useState } from 'react';
 import { useSpreadsheet } from '../hooks/useSpreadsheet';
-import Button from '../../../components/ui/button';
-import Input from '../../../components/ui/input';
+import Button from './ui/button';
+import Input from './ui/input';
 
-const DataValidationDialog: React.FC = () => {
+// FIX: Changed to a named export to resolve module resolution issue.
+export const DataValidationDialog: React.FC = () => {
     const { activeSheet, setDataValidation, toggleDataValidationDialog } = useSpreadsheet();
     const [criteria, setCriteria] = useState('');
 
@@ -49,5 +52,3 @@ const DataValidationDialog: React.FC = () => {
         </div>
     );
 };
-
-export default DataValidationDialog;

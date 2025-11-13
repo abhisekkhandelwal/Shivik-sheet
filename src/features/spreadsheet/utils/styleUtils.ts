@@ -1,3 +1,4 @@
+
 import { CellData, CellStyle, ConditionalFormatRule } from "../store/types";
 import { Getter } from '../services/formula/evaluator';
 import { isCellInRange } from "./rangeUtils";
@@ -34,7 +35,7 @@ export const computeFinalCellStyle = (
   const baseStyle = cell?.style || {};
   let finalStyle: Partial<CellStyle> = { ...baseStyle };
 
-  if (!cell?.value) {
+  if (cell?.value === null || cell?.value === undefined) {
     return finalStyle;
   }
   

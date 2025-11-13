@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSpreadsheet } from '../hooks/useSpreadsheet';
-import Button from '../../../components/ui/button';
-import Input from '../../../components/ui/input';
+import Button from './ui/button';
+import Input from './ui/input';
 import { getDisplayValue, addressToId } from '../utils/cellUtils';
 
 interface FilterMenuProps {

@@ -1,5 +1,20 @@
-
 import { CellValue, CellStyle } from "../store/types";
+
+/**
+ * Converts an Excel serial number to a JavaScript Date object.
+ * Excel's epoch is 1900-01-01, but it incorrectly treats 1900 as a leap year.
+ * The convention is to use 1899-12-30 as the epoch for conversion.
+ * @param serial The Excel serial number.
+ * @returns A JavaScript Date object.
+ */
+const excelSerialToDate = (serial: number): Date => {
+    // Excel serial date is days since 1899-12-30 (day 1 is 1900-01-01)
+    const excelEpoch = new Date(1899, 11, 30);
+    const date = new Date(excelEpoch.getTime() + serial * 86400000);
+    // Adjust for timezone offset to get the correct UTC date
+    const timezoneOffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() + timezoneOffset);
+}
 
 /**
  * Formats a raw cell value into a display string based on a format rule.
@@ -13,10 +28,29 @@ export const formatValue = (value: CellValue, style?: Partial<CellStyle>): strin
 
     const { format = 'general', decimalPlaces } = style || {};
 
-    const num = Number(value);
+    // Handle Date objects directly (from xlsx import with cellDates:true)
+    if (value instanceof Date) {
+        try {
+            switch(format) {
+                case 'short_date':
+                    return value.toLocaleDateString();
+                 case 'long_date':
+                    return value.toDateString();
+                case 'time':
+                    return value.toLocaleTimeString();
+                default: // If a date object has a non-date format, show date string
+                    return value.toLocaleDateString();
+            }
+        } catch (e) {
+            return 'Invalid Date';
+        }
+    }
+
     if (typeof value === 'string' && (format === 'general' || format === 'text')) {
         return value;
     }
+    
+    const num = Number(value);
     if (isNaN(num)) return String(value);
 
     try {
@@ -43,19 +77,26 @@ export const formatValue = (value: CellValue, style?: Partial<CellStyle>): strin
                 }).format(num);
             case 'scientific':
                 return num.toExponential(decimalPlaces ?? 2);
-            // Date/Time formats are simplified for now
-            case 'short_date':
-                return new Date(num).toLocaleDateString();
-             case 'long_date':
-                return new Date(num).toDateString();
-            case 'time':
-                return new Date(num).toLocaleTimeString();
+            
+            // Handle date/time formats when the value is a number (Excel serial date)
+            case 'short_date': {
+                const date = excelSerialToDate(num);
+                return date.toLocaleDateString();
+            }
+            case 'long_date': {
+                const date = excelSerialToDate(num);
+                return date.toDateString();
+            }
+            case 'time': {
+                const date = excelSerialToDate(num);
+                return date.toLocaleTimeString();
+            }
             
             default: // general
                 return String(value);
         }
     } catch (e) {
-        // Handle cases like invalid dates
+        // Handle cases like invalid dates from bad serial numbers
         return String(value);
     }
 };
