@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { useSpreadsheet } from '../hooks/useSpreadsheet';
 import { addressToId } from '../utils/cellUtils';
@@ -363,7 +362,7 @@ const Toolbar: React.FC = () => {
             </div>
              <div className={`flex items-stretch px-1 bg-gray-200 ${activeTab !== 'AI Tools' ? 'hidden' : ''}`}>
                  <RibbonSection label="Generative AI" className="space-x-1">
-                     <RibbonLargeDropdownButton 
+                    <RibbonLargeDropdownButton 
                         title="Analyze and complete the sheet: apply professional formatting and generate missing formulas for totals and calculations" 
                         label="AI Complete" 
                         onClick={runAiAutoFormat}
